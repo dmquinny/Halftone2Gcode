@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost;">
+    <title>Halftone to G-code Converter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main-layout">
+            <div class="left-side">
+                <!-- View Toggle Button -->
+                <div class="view-toggle-header">
+                    <button class="view-toggle-btn active" data-view="preview">Image Preview</button>
+                    <button class="view-toggle-btn" data-view="gcode">G-code Output</button>
+                </div>
+
+                <div class="left-panel">
+                    <div class="tab-header">
+                    <button class="tab-button active" data-tab="halftone">Halftone</button>
+                    <button class="tab-button" data-tab="advanced">Advanced</button>
+                    <button class="tab-button" data-tab="cnc">CNC</button>
+                </div>
+
+                    <!-- Halftone Settings Tab -->
+                    <div id="halftone-tab" class="tab-content active">
+                <div class="controls">
+
+            <!-- Image Preset Management -->
+            <div class="control-group">
+                <label>Image Presets:</label>
+                <div style="display: flex; gap: 10px;">
+                    <button id="saveImagePresetButton" class="preset-button" style="flex: 1;" title="Save halftone and advanced settings">Save Preset</button>
+                    <button id="loadImagePresetButton" class="preset-button" style="flex: 1;" title="Load halftone and advanced settings">Load Preset</button>
+                </div>
+                <p class="help-text">Save halftone, image adjustments, and advanced settings</p>
+            </div>
+
+            <input type="file" id="imageInput" accept="image/*">
+            <label for="imageInput" class="upload-button full-width-button">Choose Image</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="generatePreviewButton" disabled style="flex: 1;">Generate Halftone Preview</button>
+                <span id="previewProgress" style="min-width: 45px; font-weight: bold; color: #5B9BD5; display: none;"></span>
+            </div>
+
+            <div class="control-group" id="livePreview-group">
+                <div style="display: flex; gap: 20px; align-items: center;">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="livePreviewToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span>Live Preview</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="imageToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span>Show Original</span>
+                    </label>
+                </div>
+                <p class="help-text">Auto-update preview when changing settings</p>
+            </div>
+
+            <div class="control-group" id="imageWidth-group">
+                <label for="imageWidth">
+                    Width (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="imageWidth">-</button>
+                    <input type="number" id="imageWidth" min="10" max="1000" step="10" value="100">
+                    <button class="increment-btn" data-target="imageWidth">+</button>
+                </div>
+                <p class="help-text">Output width of carved image</p>
+            </div>
+
+            <div class="control-group" id="imageHeight-group">
+                <label for="imageHeight">
+                    Height (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="imageHeight">-</button>
+                    <input type="number" id="imageHeight" min="10" max="1000" step="10" value="100">
+                    <button class="increment-btn" data-target="imageHeight">+</button>
+                </div>
+                <p class="help-text">Output height of carved image</p>
+            </div>
+
+            <div class="control-group" id="lockAspect-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="lockAspectToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Lock Aspect Ratio</span>
+                </label>
+                <p class="help-text">Maintain original image proportions</p>
+            </div>
+
+            <div class="control-group" id="border-group">
+                <label for="border">
+                    Border (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="border">-</button>
+                    <input type="number" id="border" min="0" max="100" step="0.25" value="0.25">
+                    <button class="increment-btn" data-target="border">+</button>
+                </div>
+                <p class="help-text">Border margin around the image</p>
+            </div>
+
+            <div class="control-group" id="spacing-group">
+                <label for="spacing">
+                    Spacing (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="spacing">-</button>
+                    <input type="number" id="spacing" min="0.05" max="10" step="0.05" value="1">
+                    <button class="increment-btn" data-target="spacing">+</button>
+                </div>
+                <p class="help-text">Distance between lines/elements</p>
+            </div>
+
+            <div class="control-group" id="minSize-group">
+                <label for="minSize">
+                    Min Size (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="minSize">-</button>
+                    <input type="number" id="minSize" min="0" max="5" step="0.1" value="0">
+                    <button class="increment-btn" data-target="minSize">+</button>
+                </div>
+                <p class="help-text">Minimum line/element width in light areas</p>
+            </div>
+
+            <div class="control-group" id="maxSize-group">
+                <label for="maxSize">
+                    Max Size (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="maxSize">-</button>
+                    <input type="number" id="maxSize" min="0" max="10" step="0.1" value="2">
+                    <button class="increment-btn" data-target="maxSize">+</button>
+                </div>
+                <p class="help-text">Maximum line/element width in dark areas (can exceed spacing for overlap)</p>
+            </div>
+
+            <div class="control-group" id="preBlur-group">
+                <label for="preBlur">
+                    Pre-Blur (pixels):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="preBlur">-</button>
+                    <input type="number" id="preBlur" min="0" max="20" step="0.5" value="0">
+                    <button class="increment-btn" data-target="preBlur">+</button>
+                </div>
+                <p class="help-text">Blur image before halftoning to prevent moiré/aliasing artifacts with high-frequency patterns</p>
+            </div>
+
+            <div class="control-group" id="patternType-group">
+                <label for="patternType">
+                    Pattern Type:
+                </label>
+                <select id="patternType">
+                    <option value="lines" selected>Lines</option>
+                    <option value="squares">Squares</option>
+                    <option value="dots">Dots</option>
+                </select>
+                <p class="help-text">Different pattern styles for halftone effect</p>
+            </div>
+
+            <div class="control-group" id="crosshatchAngle2-group" style="display: none;">
+                <label for="crosshatchAngle2">
+                    Second Angle (degrees):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="crosshatchAngle2">-</button>
+                    <input type="number" id="crosshatchAngle2" min="0" max="180" step="5" value="135">
+                    <button class="increment-btn" data-target="crosshatchAngle2">+</button>
+                </div>
+                <p class="help-text">Second line angle for cross-hatching</p>
+            </div>
+
+            <div class="control-group" id="brightness-group">
+                <label for="brightness">
+                    Brightness:
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="brightness">-</button>
+                    <input type="number" id="brightness" min="-100" max="100" step="5" value="0">
+                    <button class="increment-btn" data-target="brightness">+</button>
+                </div>
+                <p class="help-text">Adjust overall brightness (-100 to +100)</p>
+            </div>
+
+            <div class="control-group" id="contrast-group">
+                <label for="contrast">
+                    Contrast:
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="contrast">-</button>
+                    <input type="number" id="contrast" min="-100" max="100" step="5" value="0">
+                    <button class="increment-btn" data-target="contrast">+</button>
+                </div>
+                <p class="help-text">Adjust image contrast (-100 to +100)</p>
+            </div>
+
+            <div class="control-group" id="gamma-group">
+                <label for="gamma">
+                    Gamma:
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="gamma">-</button>
+                    <input type="number" id="gamma" min="0.1" max="3.0" step="0.1" value="1.0">
+                    <button class="increment-btn" data-target="gamma">+</button>
+                </div>
+                <p class="help-text">Adjust midtones (0.1-3.0, 1.0=neutral)</p>
+            </div>
+
+            <div class="control-group" id="shadows-group">
+                <label for="shadows">
+                    Shadows (Levels):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="shadows">-</button>
+                    <input type="number" id="shadows" min="0" max="255" step="5" value="0">
+                    <button class="increment-btn" data-target="shadows">+</button>
+                </div>
+                <p class="help-text">Dark area threshold (0-255)</p>
+            </div>
+
+            <div class="control-group" id="midtones-group">
+                <label for="midtones">
+                    Midtones (Levels):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="midtones">-</button>
+                    <input type="number" id="midtones" min="0.1" max="10.0" step="0.1" value="1.0">
+                    <button class="increment-btn" data-target="midtones">+</button>
+                </div>
+                <p class="help-text">Midtone adjustment (0.1-10.0, 1.0=neutral)</p>
+            </div>
+
+            <div class="control-group" id="highlights-group">
+                <label for="highlights">
+                    Highlights (Levels):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="highlights">-</button>
+                    <input type="number" id="highlights" min="0" max="255" step="5" value="255">
+                    <button class="increment-btn" data-target="highlights">+</button>
+                </div>
+                <p class="help-text">Bright area threshold (0-255)</p>
+            </div>
+
+            <div class="control-group" id="autoAdjust-group">
+                <button id="autoAdjustButton" class="auto-adjust-button">Auto Adjust</button>
+                <p class="help-text">Automatically optimize brightness and contrast</p>
+            </div>
+
+            <div class="control-group" id="invert-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="invertToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Invert Image</span>
+                </label>
+                <p class="help-text">Swap light and dark areas</p>
+            </div>
+
+            <div class="control-group" id="maxDepth-group">
+                <label for="maxDepth">
+                    Max Depth (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="maxDepth">-</button>
+                    <input type="number" id="maxDepth" min="0.1" max="10" step="0.1" value="2">
+                    <button class="increment-btn" data-target="maxDepth">+</button>
+                </div>
+                <p class="help-text">Maximum cut depth in darkest areas</p>
+            </div>
+
+            <div class="control-group" id="angleControl">
+                <label for="angle">
+                    Angle (degrees):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="angle">-</button>
+                    <input type="number" id="angle" min="0" max="180" step="5" value="45">
+                    <button class="increment-btn" data-target="angle">+</button>
+                </div>
+                <p class="help-text">0° = horizontal, 45° = diagonal, 90° = vertical</p>
+            </div>
+
+            <div class="control-group" id="wavelength-group">
+                <label for="wavelength">
+                    Wavelength (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="wavelength">-</button>
+                    <input type="number" id="wavelength" min="0" max="50" step="1" value="0">
+                    <button class="increment-btn" data-target="wavelength">+</button>
+                </div>
+                <p class="help-text">Creates wavy lines (0 = straight lines)</p>
+            </div>
+
+            <div class="control-group" id="amplitude-group">
+                <label for="amplitude">
+                    Amplitude (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="amplitude">-</button>
+                    <input type="number" id="amplitude" min="0" max="10" step="0.1" value="0">
+                    <button class="increment-btn" data-target="amplitude">+</button>
+                </div>
+                <p class="help-text">Wave height for wavelength effect</p>
+            </div>
+                </div>
+                    </div>
+                    <!-- End Halftone Settings Tab -->
+
+                    <!-- Advanced Settings Tab -->
+                    <div id="advanced-tab" class="tab-content">
+                <div class="controls">
+
+            <!-- Default Presets -->
+            <div class="control-group">
+                <label>Default Presets:</label>
+                <button id="setDefaultPresetsButton" class="preset-button full-width-button" title="Set default presets to auto-load on startup">Set Default Presets</button>
+                <p class="help-text">Choose presets to automatically load when you open the app</p>
+            </div>
+
+            <!-- Preset Export/Import -->
+            <div class="control-group">
+                <label>Export/Import Presets:</label>
+                <div style="display: flex; gap: 10px;">
+                    <button id="exportPresetButton" class="preset-button" style="flex: 1;" title="Export preset to file">Export Preset</button>
+                    <button id="importPresetButton" class="preset-button" style="flex: 1;" title="Import preset from file">Import Preset</button>
+                </div>
+                <p class="help-text">Share presets between computers or with others</p>
+            </div>
+
+
+            <!-- Theme Toggle -->
+            <div class="control-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="themeToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Dark Mode</span>
+                </label>
+                <p class="help-text">Toggle between light and dark themes</p>
+            </div>
+
+            <div class="control-group" id="upscale-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="upscaleToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>4x Image Upscaling</span>
+                </label>
+                <p class="help-text">Improves detail quality (slower processing)</p>
+            </div>
+
+            <div class="control-group" id="centerOffsetX-group">
+                <label for="centerOffsetX">
+                    Center Offset X (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="centerOffsetX">-</button>
+                    <input type="number" id="centerOffsetX" min="-100" max="100" step="0.1" value="0">
+                    <button class="increment-btn" data-target="centerOffsetX">+</button>
+                </div>
+                <p class="help-text">Shift pattern center horizontally</p>
+            </div>
+
+            <div class="control-group" id="centerOffsetY-group">
+                <label for="centerOffsetY">
+                    Center Offset Y (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="centerOffsetY">-</button>
+                    <input type="number" id="centerOffsetY" min="-100" max="100" step="0.1" value="0">
+                    <button class="increment-btn" data-target="centerOffsetY">+</button>
+                </div>
+                <p class="help-text">Shift pattern center vertically</p>
+            </div>
+
+            <div class="control-group" id="offsetOddLines-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="offsetOddLinesToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Offset Odd Lines</span>
+                </label>
+                <p class="help-text">Stagger alternating lines (brick pattern effect)</p>
+            </div>
+
+            <div class="control-group" id="darkBoost-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="darkBoostToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Dark Boost</span>
+                </label>
+                <p class="help-text">Enhance contrast in dark areas</p>
+            </div>
+
+            <div class="control-group" id="fixedSizes-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="fixedSizesToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Fixed Sizes</span>
+                </label>
+                <p class="help-text">Use maximum size for all elements</p>
+            </div>
+                </div>
+                    </div>
+                    <!-- End Advanced Settings Tab -->
+
+                    <!-- CNC Settings Tab -->
+                    <div id="cnc-tab" class="tab-content">
+                <div class="controls">
+
+            <!-- CNC Preset Management -->
+            <div class="control-group">
+                <label>CNC Presets:</label>
+                <div style="display: flex; gap: 10px;">
+                    <button id="saveCncPresetButton" class="preset-button" style="flex: 1;" title="Save CNC settings">Save Preset</button>
+                    <button id="loadCncPresetButton" class="preset-button" style="flex: 1;" title="Load CNC settings">Load Preset</button>
+                </div>
+                <p class="help-text">Save CNC machine and toolpath settings</p>
+            </div>
+
+            <div class="control-group" id="multiPass-group">
+                <label for="multiPassCount">
+                    Halftone Passes:
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="multiPassCount">-</button>
+                    <input type="number" id="multiPassCount" min="1" max="5" step="1" value="1">
+                    <button class="increment-btn" data-target="multiPassCount">+</button>
+                </div>
+                <p class="help-text">Number of times to cut the halftone pattern (for cleaner results)</p>
+            </div>
+
+            <div class="control-group" id="materialThickness-group">
+                <label for="materialThickness">
+                    Material Thickness (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="materialThickness">-</button>
+                    <input type="number" id="materialThickness" min="0.1" max="100" step="0.1" value="10">
+                    <button class="increment-btn" data-target="materialThickness">+</button>
+                </div>
+                <p class="help-text">Warns if max depth exceeds thickness</p>
+            </div>
+
+            <div class="control-group" id="safeHeight-group">
+                <label for="safeHeight">
+                    Safe Z Height (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="safeHeight">-</button>
+                    <input type="number" id="safeHeight" min="1" max="50" step="1" value="5">
+                    <button class="increment-btn" data-target="safeHeight">+</button>
+                </div>
+                <p class="help-text">Clearance height for rapid moves</p>
+            </div>
+
+            <div class="control-group" id="spindleSpeed-group">
+                <label for="spindleSpeed">
+                    Spindle Speed (RPM):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="spindleSpeed">-</button>
+                    <input type="number" id="spindleSpeed" min="1000" max="30000" step="100" value="12000">
+                    <button class="increment-btn" data-target="spindleSpeed">+</button>
+                </div>
+                <p class="help-text">Router/spindle rotation speed</p>
+            </div>
+
+            <div class="control-group" id="cuttingFeedRate-group">
+                <label for="cuttingFeedRate">
+                    Cutting Feed Rate (mm/min):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="cuttingFeedRate">-</button>
+                    <input type="number" id="cuttingFeedRate" min="50" max="3000" step="50" value="800">
+                    <button class="increment-btn" data-target="cuttingFeedRate">+</button>
+                </div>
+                <p class="help-text">Speed during actual cutting operations</p>
+            </div>
+
+            <div class="control-group" id="plungeFeedRate-group">
+                <label for="plungeFeedRate">
+                    Plunge Feed Rate (mm/min):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="plungeFeedRate">-</button>
+                    <input type="number" id="plungeFeedRate" min="50" max="1000" step="50" value="300">
+                    <button class="increment-btn" data-target="plungeFeedRate">+</button>
+                </div>
+                <p class="help-text">Speed when moving vertically into material</p>
+            </div>
+
+            <div class="control-group" id="vbitAngle-group">
+                <label for="vbitAngle">
+                    V-bit Angle:
+                </label>
+                <select id="vbitAngle">
+                    <option value="30">30°</option>
+                    <option value="60">60°</option>
+                    <option value="90" selected>90°</option>
+                    <option value="120">120°</option>
+                </select>
+                <p class="help-text">Must match your actual V-bit tool</p>
+            </div>
+
+            <div class="control-group">
+                <label for="endPositionSelect">
+                    End Position:
+                </label>
+                <select id="endPositionSelect">
+                    <option value="zero" selected>Return to Zero (G0 X0 Y0)</option>
+                    <option value="home">Return to Home (G28)</option>
+                </select>
+                <p class="help-text">Where to move XY after job completes</p>
+            </div>
+
+            <div class="control-group" id="toolChange-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toolChangeToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Tool Changer</span>
+                </label>
+                <p class="help-text">Enable automatic tool changes for multi-tool operations</p>
+            </div>
+
+            <div class="control-group sub-option" id="vbitToolNumber-group" style="display: none;">
+                <label for="vbitToolNumber">
+                    V-bit Tool Number:
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="vbitToolNumber">-</button>
+                    <input type="number" id="vbitToolNumber" min="1" max="99" step="1" value="1">
+                    <button class="increment-btn" data-target="vbitToolNumber">+</button>
+                </div>
+                <p class="help-text">Tool number for V-bit engraving</p>
+            </div>
+
+            <div class="control-group sub-option" id="boundaryToolNumber-group" style="display: none;">
+                <label for="boundaryToolNumber">
+                    Boundary Frame Tool Number:
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="boundaryToolNumber">-</button>
+                    <input type="number" id="boundaryToolNumber" min="1" max="99" step="1" value="2">
+                    <button class="increment-btn" data-target="boundaryToolNumber">+</button>
+                </div>
+                <p class="help-text">Tool number for cutting boundary frame</p>
+            </div>
+
+            <div class="control-group" id="ramping-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="rampingToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Z-Axis Ramping</span>
+                </label>
+                <p class="help-text">Gradual Z entry instead of plunging</p>
+            </div>
+
+            <div class="control-group sub-option" id="rampDistance-group" style="display: none;">
+                <label for="rampDistance">
+                    Ramp Distance (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="rampDistance">-</button>
+                    <input type="number" id="rampDistance" min="0.5" max="10" step="0.5" value="2">
+                    <button class="increment-btn" data-target="rampDistance">+</button>
+                </div>
+                <p class="help-text">Horizontal distance for Z ramping</p>
+            </div>
+
+            <div class="control-group" id="boundary-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="boundaryToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Cut Boundary Frame</span>
+                </label>
+                <p class="help-text">Cut rectangle at border edge (uses Border setting)</p>
+            </div>
+
+            <div class="control-group sub-option" id="boundaryToolSize-group" style="display: none;">
+                <label for="boundaryToolSize">
+                    Boundary Frame Bit Size (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="boundaryToolSize">-</button>
+                    <input type="number" id="boundaryToolSize" min="0.1" max="25" step="0.1" value="3.175">
+                    <button class="increment-btn" data-target="boundaryToolSize">+</button>
+                </div>
+                <p class="help-text">Diameter of bit used for boundary frame</p>
+            </div>
+
+            <div class="control-group sub-option" id="boundaryPassDepth-group" style="display: none;">
+                <label for="boundaryPassDepth">
+                    Boundary Pass Depth (mm):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="boundaryPassDepth">-</button>
+                    <input type="number" id="boundaryPassDepth" min="0.1" max="10" step="0.1" value="0.5">
+                    <button class="increment-btn" data-target="boundaryPassDepth">+</button>
+                </div>
+                <p class="help-text">Depth per pass (cuts to material thickness in multiple passes)</p>
+            </div>
+
+            <div class="control-group sub-option" id="borderCuttingFeedRate-group" style="display: none;">
+                <label for="borderCuttingFeedRate">
+                    Border Cutting Feed Rate (mm/min):
+                </label>
+                <div class="input-with-buttons">
+                    <button class="decrement-btn" data-target="borderCuttingFeedRate">-</button>
+                    <input type="number" id="borderCuttingFeedRate" min="50" max="3000" step="50" value="800">
+                    <button class="increment-btn" data-target="borderCuttingFeedRate">+</button>
+                </div>
+                <p class="help-text">Speed when cutting boundary frame (uses main rate if not specified)</p>
+            </div>
+
+            <div class="control-group sub-option" id="includeBoundaryInGcode-group" style="display: none;">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="includeBoundaryInGcodeToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Include Boundary in Main G-code</span>
+                </label>
+                <p class="help-text">Uncheck to generate separate boundary frame file</p>
+            </div>
+
+            <div class="control-group" id="lineNumbers-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="lineNumbersToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Include Line Numbers</span>
+                </label>
+                <p class="help-text">Add line numbers to G-code (useful for debugging)</p>
+            </div>
+
+            <div class="control-group" id="optimizeToolpath-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="optimizeToolpathToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Optimize Toolpath</span>
+                </label>
+                <p class="help-text">Minimize rapid moves (recommended)</p>
+            </div>
+
+            <div class="control-group" id="bidirectional-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="bidirectionalToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Bidirectional Engraving</span>
+                </label>
+                <p class="help-text">Alternate cutting direction to reduce rapid moves</p>
+            </div>
+
+            <div class="control-group" id="plotter-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="plotterModeToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Plotter Mode</span>
+                </label>
+                <p class="help-text">Generate drawing commands instead of cutting (pen up/down)</p>
+            </div>
+
+            <div class="control-group" id="plotterLineWidthMethod-group" style="display: none;">
+                <label for="plotterLineWidthMethod">
+                    Line Width Method:
+                </label>
+                <select id="plotterLineWidthMethod">
+                    <option value="pressure" selected>Pressure-Based (Z-axis)</option>
+                    <option value="parallel">Parallel Offset (Multiple Passes)</option>
+                </select>
+                <p class="help-text">How to vary line width for different brightness levels</p>
+            </div>
+
+            <div class="control-group sub-option" id="plotterPressureCalibration-group" style="display: none;">
+                <label>Pressure Calibration:</label>
+                <button id="calibratePressureButton" class="auto-adjust-button" style="width: 100%; margin-bottom: 10px;">🔧 Open Calibration Guide</button>
+                <p class="help-text">Click to see step-by-step calibration instructions</p>
+            </div>
+
+            <div class="control-group sub-option" id="plotterPressureMin-group" style="display: none;">
+                <label for="plotterPressureMin">
+                    Lightest Pressure (Z):
+                </label>
+                <div class="input-group">
+                    <button class="decrement-btn" data-target="plotterPressureMin">-</button>
+                    <input type="number" id="plotterPressureMin" min="-10" max="5" step="0.1" value="0">
+                    <button class="increment-btn" data-target="plotterPressureMin">+</button>
+                </div>
+            </div>
+
+            <div class="control-group sub-option" id="plotterLineWidthLight-group" style="display: none;">
+                <label for="plotterLineWidthLight">
+                    Line Width at Light Pressure (mm):
+                </label>
+                <div class="input-group">
+                    <button class="decrement-btn" data-target="plotterLineWidthLight">-</button>
+                    <input type="number" id="plotterLineWidthLight" min="0.1" max="5" step="0.1" value="0.3">
+                    <button class="increment-btn" data-target="plotterLineWidthLight">+</button>
+                </div>
+            </div>
+
+            <div class="control-group sub-option" id="plotterPressureMax-group" style="display: none;">
+                <label for="plotterPressureMax">
+                    Heaviest Pressure (Z):
+                </label>
+                <div class="input-group">
+                    <button class="decrement-btn" data-target="plotterPressureMax">-</button>
+                    <input type="number" id="plotterPressureMax" min="-10" max="5" step="0.1" value="-0.5">
+                    <button class="increment-btn" data-target="plotterPressureMax">+</button>
+                </div>
+            </div>
+
+            <div class="control-group sub-option" id="plotterLineWidthHeavy-group" style="display: none;">
+                <label for="plotterLineWidthHeavy">
+                    Line Width at Heavy Pressure (mm):
+                </label>
+                <div class="input-group">
+                    <button class="decrement-btn" data-target="plotterLineWidthHeavy">-</button>
+                    <input type="number" id="plotterLineWidthHeavy" min="0.1" max="10" step="0.1" value="1.0">
+                    <button class="increment-btn" data-target="plotterLineWidthHeavy">+</button>
+                </div>
+                <p class="help-text">Maximum line width your pen produces at full pressure. For best results, match this to your spacing value to avoid gaps or overlap.</p>
+            </div>
+
+            <div class="control-group sub-option" id="plotterOffsetDistance-group" style="display: none;">
+                <label for="plotterPenWidth">
+                    Pen Width:
+                </label>
+                <div class="input-group">
+                    <button class="decrement-btn" data-target="plotterPenWidth">-</button>
+                    <input type="number" id="plotterPenWidth" min="0.1" max="5" step="0.1" value="0.5">
+                    <button class="increment-btn" data-target="plotterPenWidth">+</button>
+                </div>
+                <p class="help-text">Line width in mm. System will offset lines to create varying widths for darker areas.</p>
+            </div>
+
+            <div class="control-group" id="wcs-group">
+                <label for="workZeroPosition">
+                    Work Zero Position:
+                </label>
+                <select id="workZeroPosition">
+                    <option value="bottom-left" selected>Bottom-Left Corner</option>
+                    <option value="bottom-right">Bottom-Right Corner</option>
+                    <option value="center">Center</option>
+                    <option value="top-left">Top-Left Corner</option>
+                    <option value="top-right">Top-Right Corner</option>
+                </select>
+                <p class="help-text">Where you set X0 Y0 on your workpiece</p>
+            </div>
+                </div>
+                    </div>
+                    <!-- End CNC Settings Tab -->
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <!-- Preview View -->
+                <div class="view-container active" id="preview-view">
+                    <div class="preview-section">
+                        <div class="preview-box">
+                            <canvas id="originalCanvas" style="display: none;"></canvas>
+                            <canvas id="halftoneCanvas"></canvas>
+                            <div class="preview-info" id="previewInfo"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- G-code View -->
+                <div class="view-container" id="gcode-view">
+                    <div class="output-section">
+                        <h3>G-code Output</h3>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button id="generateGcodeButton" disabled style="flex: 1;">Generate G-code</button>
+                            <span id="gcodeProgress" style="min-width: 45px; font-weight: bold; color: #5B9BD5; display: none;"></span>
+                        </div>
+                        <div class="gcode-info" id="gcodeInfo"></div>
+                        <div class="time-estimate" id="timeEstimate"></div>
+                        <div id="gcodeVirtualScroll" style="height: 400px; overflow-y: auto; overflow-x: auto; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; position: relative; white-space: pre;">
+                            <div id="gcodeScrollContent" style="position: relative;"></div>
+                        </div>
+                        <textarea id="gcodeOutput" readonly style="display: none;"></textarea>
+                        <div class="download-settings">
+                            <div class="download-field">
+                                <label for="filenameInput">Filename:</label>
+                                <input type="text" id="filenameInput" value="halftone" placeholder="Enter filename">
+                            </div>
+                            <div class="download-field">
+                                <label for="fileTypeSelect">File Type:</label>
+                                <select id="fileTypeSelect">
+                                    <option value=".nc">.nc (G-code)</option>
+                                    <option value=".gcode">.gcode</option>
+                                    <option value=".tap">.tap</option>
+                                    <option value=".txt">.txt</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="downloadButton" disabled style="flex: 1;">Download G-code</button>
+                            <button id="downloadBoundaryButton" disabled style="flex: 1; display: none;">Download Boundary Frame</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calibration Modal -->
+    <div id="calibrationModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Pen Pressure Calibration Guide</h2>
+                <button class="modal-close" id="closeCalibrationModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="calibration-step">
+                    <h3>Step 1: Set Lightest Pressure Z Height</h3>
+                    <p>In the <strong>"Lightest Pressure (Z)"</strong> field, enter a Z height value (e.g., 0mm).</p>
+                    <p class="calibration-note">This is where your pen barely touches the paper.</p>
+                </div>
+
+                <div class="calibration-step">
+                    <h3>Step 2: Draw Test Line at Light Pressure</h3>
+                    <p>1. Send a simple horizontal line G-code to your plotter using the Z height from Step 1</p>
+                    <p>2. Use scrap material (paper or cardboard)</p>
+                    <p>3. Observe the line width on the paper</p>
+                </div>
+
+                <div class="calibration-step">
+                    <h3>Step 3: Measure the Light Pressure Line</h3>
+                    <p>Use <strong>calipers or ruler</strong> to measure the actual width of the line you drew.</p>
+                    <p>Example: If the line is 0.3mm wide, you'll enter <strong>0.3</strong> in the next field.</p>
+                    <p class="calibration-warning">⚠️ Measure carefully - this is critical for calibration!</p>
+                </div>
+
+                <div class="calibration-step">
+                    <h3>Step 4: Enter Light Pressure Line Width</h3>
+                    <p>Enter the measured width in the <strong>"Line Width at Light Pressure (mm)"</strong> field.</p>
+                    <p class="calibration-note">This is the thinnest line your pen can draw.</p>
+                </div>
+
+                <div style="border-top: 2px solid #ccc; margin: 20px 0;"></div>
+
+                <div class="calibration-step">
+                    <h3>Step 5: Set Heaviest Pressure Z Height</h3>
+                    <p>In the <strong>"Heaviest Pressure (Z)"</strong> field, enter a Z height value (e.g., -0.5mm).</p>
+                    <p class="calibration-note">This is where your pen presses hardest into the paper.</p>
+                </div>
+
+                <div class="calibration-step">
+                    <h3>Step 6: Draw Test Line at Heavy Pressure</h3>
+                    <p>1. Send the same horizontal line G-code using the Z height from Step 5</p>
+                    <p>2. Use the <strong>same scrap material</strong> next to the first line</p>
+                    <p>3. Observe the line width</p>
+                </div>
+
+                <div class="calibration-step">
+                    <h3>Step 7: Measure the Heavy Pressure Line</h3>
+                    <p>Use <strong>calipers or ruler</strong> to measure the width of this second line.</p>
+                    <p>Example: If the line is 1.5mm wide, you'll enter <strong>1.5</strong> in the next field.</p>
+                    <p class="calibration-warning">⚠️ Use the same measurement tool for consistency!</p>
+                </div>
+
+                <div class="calibration-step">
+                    <h3>Step 8: Enter Heavy Pressure Line Width</h3>
+                    <p>Enter the measured width in the <strong>"Line Width at Heavy Pressure (mm)"</strong> field.</p>
+                    <p class="calibration-note">This is the thickest line your pen can draw.</p>
+                </div>
+
+                <div style="border-top: 2px solid var(--border-color); margin: 20px 0;"></div>
+
+                <div class="calibration-step calibration-complete">
+                    <h3>✓ Calibration Complete!</h3>
+                    <p>The system now knows the relationship between Z pressure and line width for your setup.</p>
+                    <p>When you generate halftones, it will automatically scale line widths based on brightness.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Halftone Info Modal -->
+    <div id="halftoneInfoModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Halftone Pattern Details</h2>
+                <button class="modal-close" id="closeHalftoneInfoModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="calibration-step">
+                    <h3>Image Dimensions</h3>
+                    <p id="infoImageSize">-</p>
+                    <p id="infoPixelSize">-</p>
+                </div>
+
+                <div style="border-top: 2px solid var(--border-color); margin: 20px 0;"></div>
+
+                <div class="calibration-step">
+                    <h3>Pattern Settings</h3>
+                    <p id="infoPatternType">-</p>
+                    <p id="infoSpacing">-</p>
+                    <p id="infoAngle">-</p>
+                    <p id="infoElementCount">-</p>
+                </div>
+
+                <div style="border-top: 2px solid var(--border-color); margin: 20px 0;"></div>
+
+                <div class="calibration-step">
+                    <h3>Line Width Information</h3>
+                    <p id="infoMaxLineWidth">-</p>
+                    <p id="infoMinLineWidth">-</p>
+                    <p id="infoActualMaxWidth">-</p>
+                    <p class="calibration-note" id="infoWidthNote">-</p>
+                </div>
+
+                <div style="border-top: 2px solid var(--border-color); margin: 20px 0;" id="infoPressureSection" style="display: none;">
+
+                <div class="calibration-step" id="infoPressureDetails" style="display: none;">
+                    <h3>Plotter Pressure Settings</h3>
+                    <p id="infoPressureMethod">-</p>
+                    <p id="infoPressureMin">-</p>
+                    <p id="infoPressureMax">-</p>
+                    <p id="infoLineWidthLight">-</p>
+                    <p id="infoLineWidthHeavy">-</p>
+                    <p class="calibration-warning" id="infoPressureWarning" style="display: none;">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load main app -->
+    <script src="app.js?v=20260103"></script>
+
+    <!-- Load streaming support (works in both browser and Tauri, but only activates in Tauri) -->
+    <script src="gcode-streamer.js"></script>
+    <script src="gcode-generator-streaming-v2.js"></script>
+    <script src="gcode-streaming-integration-v2.js"></script>
+
+    <!-- Initialize streaming for Tauri -->
+    <script>
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const generateBtn = document.getElementById('generateGcodeButton');
+
+                // Check if Tauri is available and streaming functions loaded
+                if (window.__TAURI__ && window.generateGcodeWithStreaming) {
+                    // Override the generate button to use streaming
+                    generateBtn.addEventListener('click', async function(e) {
+                        e.stopImmediatePropagation();
+                        e.preventDefault();
+                        await generateGcodeWithStreaming();
+                    }, true);
+
+                    // Add visual indicator
+                    generateBtn.title = '🚀 Streaming Mode Active - Low Memory Usage';
+                    console.log('✅ Streaming enabled for Tauri - Memory usage will stay low');
+
+                    // Add indicator to UI
+                    const gcodeInfo = document.getElementById('gcodeInfo');
+                    if (gcodeInfo) {
+                        const indicator = document.createElement('span');
+                        indicator.textContent = ' 🚀 Streaming Mode';
+                        indicator.style.color = '#28a745';
+                        indicator.style.fontSize = '0.9em';
+                        indicator.style.marginLeft = '10px';
+                        gcodeInfo.appendChild(indicator);
+                    }
+                } else {
+                    console.log('⚠️ Streaming NOT available - using standard mode');
+                    console.log('window.__TAURI__:', typeof window.__TAURI__);
+                    console.log('generateGcodeWithStreaming:', typeof window.generateGcodeWithStreaming);
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>

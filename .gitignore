@@ -1,0 +1,48 @@
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build outputs
+dist/
+*.log
+
+# Temporary and backup files
+*.backup
+*.tmp
+START_HERE.txt
+*-modular.*
+app-streaming-integration.js
+Old App/
+js/
+
+# Documentation (keep only README.md)
+TAURI_SETUP.md
+QUICK_START.md
+WINDOWS_SETUP.md
+INSTALL.md
+FIX_YOUR_ERROR.md
+STREAMING_*.md
+MEMORY_*.md
+INTEGRATION_*.md
+REFACTORING_*.md
+MODULAR_*.md
+FINAL_*.md

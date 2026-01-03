@@ -1,0 +1,19 @@
+{
+  "name": "halftone-converter",
+  "version": "0.1.0",
+  "description": "Halftone to G-code Converter - Desktop App",
+  "main": "app.js",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "copy-files": "node copy-files.js",
+    "build": "tauri build",
+    "serve": "python -m http.server 8080"
+  },
+  "keywords": ["cnc", "halftone", "gcode", "converter"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.6"
+  }
+}

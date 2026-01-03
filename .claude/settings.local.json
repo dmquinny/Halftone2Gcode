@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m http.server:*)",
+      "Bash(dir)",
+      "Bash(echo \"\n// STL Export Function\nexportStlButton.addEventListener\\(''click'', \\(\\) => {\n    if \\(!currentHalftoneData\\) {\n        alert\\(''Please generate a halftone preview first.''\\);\n        return;\n    }\n\n    const maxDepth = parseFloat\\(maxDepthInput.value\\);\n    const stlData = generateSTL\\(currentHalftoneData, maxDepth\\);\n\n    // Create download\n    const blob = new Blob\\([stlData], { type: ''application/sla'' }\\);\n    const url = URL.createObjectURL\\(blob\\);\n    const a = document.createElement\\(''a''\\);\n    a.href = url;\n    a.download = \\(filenameInput.value || ''halftone''\\) + ''.stl'';\n    document.body.appendChild\\(a\\);\n    a.click\\(\\);\n    document.body.removeChild\\(a\\);\n    URL.revokeObjectURL\\(url\\);\n}\\);\")",
+      "Bash(cat:*)",
+      "Bash(del \"c:\\\\Users\\\\benqu\\\\Documents\\\\Standalone Web Apps\\\\vcarve\\\\stl_export.txt\")",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(curl:*)",
+      "Bash(node --version:*)",
+      "Bash(npm --version:*)",
+      "Bash(npm create:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tauri init:*)",
+      "Bash(mkdir:*)",
+      "Bash(npx @tauri-apps/cli icon:*)",
+      "Bash(npm run dev:*)",
+      "Bash(tasklist /FI \"IMAGENAME eq halftone-converter.exe\" /FO TABLE)",
+      "Bash(powershell:*)",
+      "Bash(node -c:*)",
+      "Bash(copy /Y app.js.generateGcode.backup app.js.original)",
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(node copy-files.js:*)",
+      "Bash(npm run copy-files:*)",
+      "Bash(del TAURI_SETUP.md QUICK_START.md WINDOWS_SETUP.md INSTALL.md FIX_YOUR_ERROR.md STREAMING_GCODE.md MEMORY_FIX_SUMMARY.md INTEGRATION_STEPS.md REFACTORING_PLAN.md MODULAR_README.md MODULAR_QUICKSTART.md STREAMING_INTEGRATION_INSTRUCTIONS.md STREAMING_FIX.md FINAL_STREAMING_SOLUTION.md STREAMING_COMPLETE.md)"
+    ]
+  }
+}
