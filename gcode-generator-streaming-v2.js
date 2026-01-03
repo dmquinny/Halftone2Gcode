@@ -184,20 +184,23 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 }
 
                                 if (i === 0 && offsetPass === 0) {
-                                    // First point of first pass: rapid move
+                                    // First point of first pass: rapid move, then pen down
                                     await writeLine(`G0 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)}`);
+                                    await writeLine(`G1 Z0 F${plungeFeedRate}`);
                                     rapidMoveCount++;
                                     const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                     totalTime += (rapidDist / rapidRate) * 60;
                                 } else if (offsetPass > 0 && i === 0) {
                                     // First point of subsequent passes: lift pen, rapid move, lower pen
+                                    await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
                                     await writeLine(`G0 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)}`);
+                                    await writeLine(`G1 Z0 F${plungeFeedRate}`);
                                     rapidMoveCount++;
                                     const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                     totalTime += (rapidDist / rapidRate) * 60;
                                 } else {
-                                    // Drawing move
-                                    await writeLine(`G1 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)} F${cuttingFeedRate}`);
+                                    // Drawing move with Z at paper level
+                                    await writeLine(`G1 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)} Z0 F${cuttingFeedRate}`);
                                     const drawDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                     totalCuttingDistance += drawDist;
                                     totalTime += (drawDist / cuttingFeedRate) * 60;
@@ -265,6 +268,9 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                     await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
                     lastZ = safeHeight;
                     totalTime += ((safeHeight + Math.abs(lastZ)) / rapidRate) * 60;
+                } else if (plotterMode && plotterLineWidthMethod === 'setPenSize') {
+                    // Lift pen for Set Pen Size method
+                    await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
                 }
             }
         }
@@ -327,12 +333,17 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                     const circleY = y + Math.sin(angle) * radius;
 
                                     if (seg === 0) {
+                                        if (pathIndex > 0) {
+                                            // Lift pen between paths
+                                            await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
+                                        }
                                         await writeLine(`G0 X${circleX.toFixed(3)} Y${circleY.toFixed(3)}`);
+                                        await writeLine(`G1 Z0 F${plungeFeedRate}`);
                                         rapidMoveCount++;
                                         const rapidDist = Math.sqrt((circleX - lastX) ** 2 + (circleY - lastY) ** 2);
                                         totalTime += (rapidDist / rapidRate) * 60;
                                     } else {
-                                        await writeLine(`G1 X${circleX.toFixed(3)} Y${circleY.toFixed(3)} F${cuttingFeedRate}`);
+                                        await writeLine(`G1 X${circleX.toFixed(3)} Y${circleY.toFixed(3)} Z0 F${cuttingFeedRate}`);
                                         const drawDist = Math.sqrt((circleX - lastX) ** 2 + (circleY - lastY) ** 2);
                                         totalCuttingDistance += drawDist;
                                         totalTime += (drawDist / cuttingFeedRate) * 60;
@@ -355,12 +366,17 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
                                     const corner = corners[cornerIndex];
                                     if (cornerIndex === 0) {
+                                        if (pathIndex > 0) {
+                                            // Lift pen between paths
+                                            await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
+                                        }
                                         await writeLine(`G0 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)}`);
+                                        await writeLine(`G1 Z0 F${plungeFeedRate}`);
                                         rapidMoveCount++;
                                         const rapidDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
                                         totalTime += (rapidDist / rapidRate) * 60;
                                     } else {
-                                        await writeLine(`G1 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)} F${cuttingFeedRate}`);
+                                        await writeLine(`G1 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)} Z0 F${cuttingFeedRate}`);
                                         const drawDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
                                         totalCuttingDistance += drawDist;
                                         totalTime += (drawDist / cuttingFeedRate) * 60;
@@ -371,6 +387,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 }
                             }
                         }
+                        // Lift pen after completing all paths for this element
+                        await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
                     }
                 } else {
                     const targetWidth = element.size;
