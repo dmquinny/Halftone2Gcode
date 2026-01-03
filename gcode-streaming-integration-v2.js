@@ -50,14 +50,25 @@ async function generateGcodeWithStreaming() {
             return true; // User cancelled
         }
 
+        // Get UI elements
+        const gcodeOutput = document.getElementById('gcodeOutput');
+        const gcodeInfo = document.getElementById('gcodeInfo');
+        const gcodeProgress = document.getElementById('gcodeProgress');
+        const timeEstimate = document.getElementById('timeEstimate');
+        const generateGcodeButton = document.getElementById('generateGcodeButton');
+
         // Update UI
-        gcodeOutput.value = 'Generating G-code (streaming to file)...';
-        gcodeInfo.textContent = 'Writing...';
-        gcodeInfo.style.color = '#5B9BD5';
-        gcodeProgress.textContent = '0';
-        gcodeProgress.style.display = 'inline';
-        timeEstimate.textContent = '';
-        generateGcodeButton.disabled = true;
+        if (gcodeOutput) gcodeOutput.value = 'Generating G-code (streaming to file)...';
+        if (gcodeInfo) {
+            gcodeInfo.textContent = 'Writing...';
+            gcodeInfo.style.color = '#5B9BD5';
+        }
+        if (gcodeProgress) {
+            gcodeProgress.textContent = '0';
+            gcodeProgress.style.display = 'inline';
+        }
+        if (timeEstimate) timeEstimate.textContent = '';
+        if (generateGcodeButton) generateGcodeButton.disabled = true;
 
         // Gather all parameters
         const maxDepth = parseFloat(maxDepthInput.value);
@@ -133,14 +144,13 @@ async function generateGcodeWithStreaming() {
         await streamer.finish();
 
         // Show summary in output
-        const gcodeOut = document.getElementById('gcodeOutput');
         const summary = `File saved successfully!\n\n` +
                        `Lines: ${result.lineCount.toLocaleString()}\n` +
                        `Distance: ${result.totalDistance.toFixed(1)}mm\n` +
                        `File size: ${(result.lineCount * 43 / 1024 / 1024).toFixed(1)}MB\n\n` +
                        `Use controls above to load preview lines.`;
 
-        if (gcodeOut) gcodeOut.value = summary;
+        if (gcodeOutput) gcodeOutput.value = summary;
 
         // Store file info globally for preview
         window.currentGcodeFile = {
@@ -149,7 +159,6 @@ async function generateGcodeWithStreaming() {
         };
 
         // Add preview controls to the G-code info area
-        const gcodeInfo = document.getElementById('gcodeInfo');
         if (gcodeInfo) {
             gcodeInfo.innerHTML = `
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -180,10 +189,9 @@ async function generateGcodeWithStreaming() {
             }
         }
 
-        const gcodeProgress = document.getElementById('gcodeProgress');
         if (gcodeProgress) gcodeProgress.style.display = 'none';
 
-        if (result.estimatedTime) {
+        if (result.estimatedTime && timeEstimate) {
             const minutes = Math.floor(result.estimatedTime / 60);
             const seconds = Math.round(result.estimatedTime % 60);
             timeEstimate.textContent = `Est. time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -199,8 +207,7 @@ async function generateGcodeWithStreaming() {
         const clearBtn = document.getElementById('clearGcodeButton');
         if (clearBtn) clearBtn.disabled = false;
 
-        const genBtn = document.getElementById('generateGcodeButton');
-        if (genBtn) genBtn.disabled = false;
+        if (generateGcodeButton) generateGcodeButton.disabled = false;
 
         alert(`✅ Success!\n\nG-code saved to:\n${filePath}\n\n${result.lineCount} lines generated`);
 
@@ -209,20 +216,16 @@ async function generateGcodeWithStreaming() {
     } catch (error) {
         console.error('Streaming G-code error:', error);
 
-        const gcodeOut = document.getElementById('gcodeOutput');
-        if (gcodeOut) gcodeOut.value = 'Error generating G-code: ' + error.message;
+        if (gcodeOutput) gcodeOutput.value = 'Error generating G-code: ' + error.message;
 
-        const gcodeInf = document.getElementById('gcodeInfo');
-        if (gcodeInf) {
-            gcodeInf.textContent = 'Error';
-            gcodeInf.style.color = '#dc3545';
+        if (gcodeInfo) {
+            gcodeInfo.textContent = 'Error';
+            gcodeInfo.style.color = '#dc3545';
         }
 
-        const gcodeProg = document.getElementById('gcodeProgress');
-        if (gcodeProg) gcodeProg.style.display = 'none';
+        if (gcodeProgress) gcodeProgress.style.display = 'none';
 
-        const genBtn = document.getElementById('generateGcodeButton');
-        if (genBtn) genBtn.disabled = false;
+        if (generateGcodeButton) generateGcodeButton.disabled = false;
 
         alert('Error generating G-code:\n' + error.message);
         return true;
