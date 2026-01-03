@@ -12,6 +12,7 @@ package-lock.json
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
