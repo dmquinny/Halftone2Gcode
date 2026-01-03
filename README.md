@@ -45,7 +45,12 @@ A high-performance desktop application for converting images to CNC G-code using
 
 **[Download for Windows](#)** • **[Download for macOS](#)** • **[Download for Linux](#)**
 
-> Pre-built installers are available in the [Releases](../../releases) section.
+> Both installers and portable versions are available in the [Releases](../../releases) section.
+
+**Available Formats:**
+- **Windows**: `.msi` installer, `.exe` installer, and portable `.exe` (no installation required)
+- **macOS**: `.dmg` installer and `.app` bundle (portable)
+- **Linux**: `.deb` package and `.AppImage` (portable, run anywhere)
 
 ### Build from Source
 
@@ -83,10 +88,10 @@ npm run dev
 npm run build
 ```
 
-Installers will be in `src-tauri/target/release/bundle/`:
-- **Windows**: `.msi` and `.exe`
-- **macOS**: `.dmg` and `.app`
-- **Linux**: `.deb` and `.AppImage`
+Build outputs will be in `src-tauri/target/release/bundle/`:
+- **Windows**: `.msi` installer, `.exe` installer, and portable `.exe` in `nsis/` folder
+- **macOS**: `.dmg` installer and `.app` bundle (portable)
+- **Linux**: `.deb` package and `.AppImage` (portable)
 
 ## 📖 Usage
 
