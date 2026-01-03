@@ -107,6 +107,7 @@ async function generateGcodeWithStreaming() {
         const plotterPressureMin = parseFloat(plotterPressureMinInput.value);
         const plotterPressureMax = parseFloat(plotterPressureMaxInput.value);
         const plotterPenWidth = parseFloat(plotterPenWidthInput.value);
+        const plotterPenSize = parseFloat(plotterPenSizeInput.value);
         const plotterLineWidthLight = parseFloat(plotterLineWidthLightInput.value);
         const plotterLineWidthHeavy = parseFloat(plotterLineWidthHeavyInput.value);
 
@@ -144,6 +145,7 @@ async function generateGcodeWithStreaming() {
             plotterPressureMin,
             plotterPressureMax,
             plotterPenWidth,
+            plotterPenSize,
             plotterLineWidthLight,
             plotterLineWidthHeavy,
             streamer  // Pass streamer as last parameter

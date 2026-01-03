@@ -91,6 +91,7 @@ const plotterLineWidthMethod = document.getElementById('plotterLineWidthMethod')
 const plotterPressureMinInput = document.getElementById('plotterPressureMin');
 const plotterPressureMaxInput = document.getElementById('plotterPressureMax');
 const plotterPenWidthInput = document.getElementById('plotterPenWidth');
+const plotterPenSizeInput = document.getElementById('plotterPenSize');
 const plotterLineWidthLightInput = document.getElementById('plotterLineWidthLight');
 const plotterLineWidthHeavyInput = document.getElementById('plotterLineWidthHeavy');
 
@@ -1726,7 +1727,8 @@ function showPresetModal(mode, type) {
                     plotterPressureMax: plotterPressureMaxInput?.value || -0.5,
                     plotterLineWidthLight: plotterLineWidthLightInput?.value || 0.3,
                     plotterLineWidthHeavy: plotterLineWidthHeavyInput?.value || 1.0,
-                    plotterPenWidth: plotterPenWidthInput?.value || 0.5
+                    plotterPenWidth: plotterPenWidthInput?.value || 0.5,
+                    plotterPenSize: plotterPenSizeInput?.value || 0.5
                 };
             }
 
@@ -1821,6 +1823,7 @@ function showPresetModal(mode, type) {
                     if (plotterLineWidthLightInput) plotterLineWidthLightInput.value = preset.plotterLineWidthLight || 0.3;
                     if (plotterLineWidthHeavyInput) plotterLineWidthHeavyInput.value = preset.plotterLineWidthHeavy || 1.0;
                     if (plotterPenWidthInput) plotterPenWidthInput.value = preset.plotterPenWidth || 0.5;
+                    if (plotterPenSizeInput) plotterPenSizeInput.value = preset.plotterPenSize || 0.5;
                     toolChangeToggle.dispatchEvent(new Event('change'));
                     rampingToggle.dispatchEvent(new Event('change'));
                     boundaryToggle.dispatchEvent(new Event('change'));
@@ -2310,14 +2313,14 @@ function updateHalftonePreview() {
     const darkBoost = darkBoostToggle.checked;
     const fixedSizes = fixedSizesToggle.checked;
     
-    // Adjust spacing for plotter mode based on pen width (only for parallel offset method)
+    // Adjust spacing for plotter mode based on pen size (only for Set Pen Size method)
     if (plotterModeToggle.checked) {
         const plotterMethod = plotterLineWidthMethod?.value || 'pressure';
-        if (plotterMethod === 'parallel') {
-            const penWidth = parseFloat(plotterPenWidthInput?.value || 0.5);
-            // Pen width should influence minimum line spacing - larger pens need coarser halftones
-            // Scale spacing proportionally to pen width (1.0mm pen = 1x spacing, 0.5mm pen = 0.5x spacing)
-            spacing = spacing * (penWidth / 0.5);
+        if (plotterMethod === 'setPenSize') {
+            const penSize = parseFloat(plotterPenSizeInput?.value || 0.5);
+            // Pen size should influence minimum line spacing - larger pens need coarser halftones
+            // Scale spacing proportionally to pen size (1.0mm pen = 1x spacing, 0.5mm pen = 0.5x spacing)
+            spacing = spacing * (penSize / 0.5);
         }
         // For pressure-based method, don't adjust spacing since pen width varies with pressure
     }
@@ -2586,6 +2589,7 @@ generateGcodeButton.addEventListener('click', () => {
             plotterPressureMin: plotterMode ? parseFloat(plotterPressureMinInput?.value || 0) : 0,
             plotterPressureMax: plotterMode ? parseFloat(plotterPressureMaxInput?.value || -0.5) : -0.5,
             plotterPenWidth: plotterMode ? parseFloat(plotterPenWidthInput?.value || 0.5) : 0.5,
+            plotterPenSize: plotterMode ? parseFloat(plotterPenSizeInput?.value || 0.5) : 0.5,
             plotterLineWidthLight: plotterMode ? parseFloat(plotterLineWidthLightInput?.value || 0.3) : 0.3,
             plotterLineWidthHeavy: plotterMode ? parseFloat(plotterLineWidthHeavyInput?.value || 1.0) : 1.0
         }
@@ -4853,7 +4857,8 @@ if (plotterLineWidthHeavyInput) {
 function updatePlotterMethodOptions() {
     const method = plotterLineWidthMethod?.value || 'pressure';
     const isPressure = method === 'pressure';
-    
+    const isSetPenSize = method === 'setPenSize';
+
     const pressureGroups = [
         document.getElementById('plotterPressureCalibration-group'),
         document.getElementById('plotterPressureMin-group'),
@@ -4861,18 +4866,16 @@ function updatePlotterMethodOptions() {
         document.getElementById('plotterPressureMax-group'),
         document.getElementById('plotterLineWidthHeavy-group')
     ];
-    
-    const offsetGroups = [
-        document.getElementById('plotterOffsetDistance-group')
-    ];
-    
+
+    const penSizeGroup = document.getElementById('plotterPenSize-group');
+
     pressureGroups.forEach(group => {
         if (group) group.style.display = isPressure ? 'flex' : 'none';
     });
-    
-    offsetGroups.forEach(group => {
-        if (group) group.style.display = isPressure ? 'none' : 'flex';
-    });
+
+    if (penSizeGroup) {
+        penSizeGroup.style.display = isSetPenSize ? 'flex' : 'none';
+    }
 }
 
 // Function to load a preset programmatically
@@ -4950,6 +4953,7 @@ function loadPreset(type, presetName, silent = false) {
         if (plotterLineWidthLightInput) plotterLineWidthLightInput.value = preset.plotterLineWidthLight || 0.3;
         if (plotterLineWidthHeavyInput) plotterLineWidthHeavyInput.value = preset.plotterLineWidthHeavy || 1.0;
         if (plotterPenWidthInput) plotterPenWidthInput.value = preset.plotterPenWidth || 0.5;
+        if (plotterPenSizeInput) plotterPenSizeInput.value = preset.plotterPenSize || 0.5;
         toolChangeToggle.dispatchEvent(new Event('change'));
         rampingToggle.dispatchEvent(new Event('change'));
         boundaryToggle.dispatchEvent(new Event('change'));

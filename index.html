@@ -704,7 +704,7 @@
                 </label>
                 <select id="plotterLineWidthMethod">
                     <option value="pressure" selected>Pressure-Based (Z-axis)</option>
-                    <option value="parallel">Parallel Offset (Multiple Passes)</option>
+                    <option value="setPenSize">Set Pen Size</option>
                 </select>
                 <p class="help-text">How to vary line width for different brightness levels</p>
             </div>
@@ -760,16 +760,16 @@
                 <p class="help-text">Maximum line width your pen produces at full pressure. For best results, match this to your spacing value to avoid gaps or overlap.<br><span style="color: #ff4444;">(Can't be smaller than the Max Size)</span></p>
             </div>
 
-            <div class="control-group sub-option" id="plotterOffsetDistance-group" style="display: none;">
-                <label for="plotterPenWidth">
-                    Pen Width:
+            <div class="control-group sub-option" id="plotterPenSize-group" style="display: none;">
+                <label for="plotterPenSize">
+                    Pen Size (mm):
                 </label>
                 <div class="input-group">
-                    <button class="decrement-btn" data-target="plotterPenWidth">-</button>
-                    <input type="number" id="plotterPenWidth" min="0.1" max="5" step="0.1" value="0.5">
-                    <button class="increment-btn" data-target="plotterPenWidth">+</button>
+                    <button class="decrement-btn" data-target="plotterPenSize">-</button>
+                    <input type="number" id="plotterPenSize" min="0.1" max="5" step="0.1" value="0.5">
+                    <button class="increment-btn" data-target="plotterPenSize">+</button>
                 </div>
-                <p class="help-text">Line width in mm. System will offset lines to create varying widths for darker areas.</p>
+                <p class="help-text">Fixed pen size in mm. System generates offset paths to fill shapes based on halftone darkness.</p>
             </div>
 
             <div class="control-group" id="wcs-group">

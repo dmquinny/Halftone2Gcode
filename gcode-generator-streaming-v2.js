@@ -5,7 +5,7 @@
  * Memory usage: ~50-100MB regardless of output size
  */
 
-async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, streamer) {
+async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, streamer) {
 
     // Time estimation variables
     let totalTime = 0;
@@ -158,12 +158,12 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${depth.toFixed(3)}`);
                             }
                         } else {
-                            // Parallel offset method: draw multiple passes for thickness
-                            const penWidth = plotterPenWidth;
+                            // Set Pen Size method: draw multiple passes for thickness
+                            const penSize = plotterPenSize;
                             const numPasses = Math.max(1, Math.round(point.depth * 5));
 
                             for (let offsetPass = 0; offsetPass < numPasses; offsetPass++) {
-                                const offsetDist = (offsetPass - (numPasses - 1) / 2) * (penWidth / 3);
+                                const offsetDist = (offsetPass - (numPasses - 1) / 2) * (penSize / 3);
 
                                 // Calculate perpendicular offset
                                 let offsetX = x;
@@ -297,32 +297,97 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         // Clamp widthRatio to 0-1 range
                         const clampedRatio = Math.max(0, Math.min(1, widthRatio));
                         depth = plotterPressureMin + (clampedRatio * pressureRange);
+
+                        await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
+                        rapidMoveCount++;
+                        const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                        totalTime += (rapidDist / rapidRate) * 60;
+                        await writeLine(`G1 Z${depth.toFixed(3)}`);
+                        lastX = x;
+                        lastY = y;
                     } else {
-                        const lineWidth = plotterLineWidthLight + (element.depth * (plotterLineWidthHeavy - plotterLineWidthLight));
-                        depth = -lineWidth;
+                        // Set Pen Size method: generate concentric paths based on element size
+                        const penSize = plotterPenSize;
+                        const elementSize = element.size || (element.depth * (halftoneData.maxSize || maxDepth * 2));
+                        const numPaths = Math.max(1, Math.floor(elementSize / penSize));
+
+                        // Determine if this is dots (circles) or squares
+                        const isDots = patternType === 'dots';
+
+                        for (let pathIndex = 0; pathIndex < numPaths; pathIndex++) {
+                            const radius = elementSize / 2 - (pathIndex * penSize);
+                            if (radius < penSize / 2) break; // Stop when radius gets too small
+
+                            if (isDots) {
+                                // Generate concentric circle
+                                const segments = Math.max(16, Math.floor(radius * 4)); // More segments for larger circles
+                                for (let seg = 0; seg <= segments; seg++) {
+                                    const angle = (seg / segments) * Math.PI * 2;
+                                    const circleX = x + Math.cos(angle) * radius;
+                                    const circleY = y + Math.sin(angle) * radius;
+
+                                    if (seg === 0) {
+                                        await writeLine(`G0 X${circleX.toFixed(3)} Y${circleY.toFixed(3)}`);
+                                        rapidMoveCount++;
+                                        const rapidDist = Math.sqrt((circleX - lastX) ** 2 + (circleY - lastY) ** 2);
+                                        totalTime += (rapidDist / rapidRate) * 60;
+                                    } else {
+                                        await writeLine(`G1 X${circleX.toFixed(3)} Y${circleY.toFixed(3)} F${cuttingFeedRate}`);
+                                        const drawDist = Math.sqrt((circleX - lastX) ** 2 + (circleY - lastY) ** 2);
+                                        totalCuttingDistance += drawDist;
+                                        totalTime += (drawDist / cuttingFeedRate) * 60;
+                                    }
+
+                                    lastX = circleX;
+                                    lastY = circleY;
+                                }
+                            } else {
+                                // Generate concentric square
+                                const halfSize = radius;
+                                const corners = [
+                                    {x: x - halfSize, y: y - halfSize},
+                                    {x: x + halfSize, y: y - halfSize},
+                                    {x: x + halfSize, y: y + halfSize},
+                                    {x: x - halfSize, y: y + halfSize},
+                                    {x: x - halfSize, y: y - halfSize}  // Close the square
+                                ];
+
+                                for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
+                                    const corner = corners[cornerIndex];
+                                    if (cornerIndex === 0) {
+                                        await writeLine(`G0 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)}`);
+                                        rapidMoveCount++;
+                                        const rapidDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
+                                        totalTime += (rapidDist / rapidRate) * 60;
+                                    } else {
+                                        await writeLine(`G1 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)} F${cuttingFeedRate}`);
+                                        const drawDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
+                                        totalCuttingDistance += drawDist;
+                                        totalTime += (drawDist / cuttingFeedRate) * 60;
+                                    }
+
+                                    lastX = corner.x;
+                                    lastY = corner.y;
+                                }
+                            }
+                        }
                     }
                 } else {
                     const targetWidth = element.size;
                     const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                     depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
-                }
 
-                if ((!plotterMode && depth > minDepth) || plotterMode) {
-                    await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
-                    rapidMoveCount++;
-                    const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                    totalTime += (rapidDist / rapidRate) * 60;
-
-                    if (!plotterMode) {
+                    if (depth > minDepth) {
+                        await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
+                        rapidMoveCount++;
+                        const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                        totalTime += (rapidDist / rapidRate) * 60;
                         await writeLine(`G1 Z${(-depth).toFixed(3)} F${plungeFeedRate}`);
                         await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
                         totalTime += ((depth / plungeFeedRate) + ((safeHeight + depth) / rapidRate)) * 60;
-                    } else {
-                        await writeLine(`G1 Z${depth.toFixed(3)}`);
+                        lastX = x;
+                        lastY = y;
                     }
-
-                    lastX = x;
-                    lastY = y;
                 }
             }
         }
