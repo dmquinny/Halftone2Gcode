@@ -48,9 +48,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Halftone Converter v__VERSION__'
+          releaseName: 'Halftone Converter __VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeRelease: true
 
@@ -60,7 +60,7 @@ jobs:
         with:
           files: src-tauri/target/release/halftone-converter.exe
           tag_name: ${{ github.ref_name }}
-          draft: true
+          draft: false
           append_body: false
 
       - name: Upload portable executable (macOS)
@@ -69,7 +69,7 @@ jobs:
         with:
           files: src-tauri/target/release/halftone-converter
           tag_name: ${{ github.ref_name }}
-          draft: true
+          draft: false
           append_body: false
 
       - name: Upload portable executable (Linux)
@@ -78,5 +78,5 @@ jobs:
         with:
           files: src-tauri/target/release/halftone-converter
           tag_name: ${{ github.ref_name }}
-          draft: true
+          draft: false
           append_body: false
