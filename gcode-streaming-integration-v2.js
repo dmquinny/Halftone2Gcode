@@ -93,7 +93,8 @@ async function generateGcodeWithStreaming() {
         const boundaryToolSize = parseFloat(boundaryToolSizeInput.value);
         const materialThickness = parseFloat(materialThicknessInput.value);
         const boundaryPassDepth = parseFloat(boundaryPassDepthInput.value);
-        const multiPassCount = parseInt(multiPassCountInput.value);
+        // Multi-pass only applies to cutting mode, not plotter mode
+        const multiPassCount = plotterMode ? 1 : parseInt(multiPassCountInput.value);
         const ramping = rampingToggle.checked;
         const rampDistance = parseFloat(rampDistanceInput.value);
         const boundary = boundaryToggle.checked;
