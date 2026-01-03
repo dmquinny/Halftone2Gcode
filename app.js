@@ -4824,6 +4824,32 @@ if (plotterLineWidthMethod) {
     plotterLineWidthMethod.addEventListener('change', updatePlotterMethodOptions);
 }
 
+// Enforce minimum value for plotterLineWidthHeavy
+if (plotterLineWidthHeavyInput) {
+    plotterLineWidthHeavyInput.addEventListener('input', function() {
+        const min = parseFloat(this.min);
+        const value = parseFloat(this.value);
+
+        if (!isNaN(min) && !isNaN(value) && value < min) {
+            this.value = min.toFixed(1);
+            // Show visual feedback
+            this.style.borderColor = '#ff4444';
+            setTimeout(() => {
+                this.style.borderColor = '';
+            }, 500);
+        }
+    });
+
+    plotterLineWidthHeavyInput.addEventListener('blur', function() {
+        const min = parseFloat(this.min);
+        const value = parseFloat(this.value);
+
+        if (!isNaN(min) && !isNaN(value) && value < min) {
+            this.value = min.toFixed(1);
+        }
+    });
+}
+
 function updatePlotterMethodOptions() {
     const method = plotterLineWidthMethod?.value || 'pressure';
     const isPressure = method === 'pressure';
