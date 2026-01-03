@@ -48,9 +48,9 @@ A high-performance desktop application for converting images to CNC G-code using
 > Both installers and portable versions are available in the [Releases](../../releases) section.
 
 **Available Formats:**
-- **Windows**: `.msi` installer, `.exe` installer, and portable `.exe` (no installation required)
-- **macOS**: `.dmg` installer and `.app` bundle (portable)
-- **Linux**: `.deb` package and `.AppImage` (portable, run anywhere)
+- **Windows**: `.msi` installer, `.exe` installer (NSIS), and `halftone-converter.exe` (portable, no installation required)
+- **macOS**: `.dmg` installer, `.app` bundle, and `halftone-converter` binary (portable)
+- **Linux**: `.deb` package, `.AppImage`, and `halftone-converter` binary (portable)
 
 ### Build from Source
 
@@ -88,10 +88,15 @@ npm run dev
 npm run build
 ```
 
-Build outputs will be in `src-tauri/target/release/bundle/`:
-- **Windows**: `.msi` installer, `.exe` installer, and portable `.exe` in `nsis/` folder
-- **macOS**: `.dmg` installer and `.app` bundle (portable)
-- **Linux**: `.deb` package and `.AppImage` (portable)
+Build outputs will be in:
+- **Installers**: `src-tauri/target/release/bundle/`
+  - Windows: `.msi` installer, `.exe` installer (NSIS)
+  - macOS: `.dmg` installer, `.app` bundle
+  - Linux: `.deb` package, `.AppImage`
+- **Portable executables**: `src-tauri/target/release/`
+  - Windows: `halftone-converter.exe`
+  - macOS: `halftone-converter`
+  - Linux: `halftone-converter`
 
 ## 📖 Usage
 

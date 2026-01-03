@@ -51,3 +51,28 @@ jobs:
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: true
           prerelease: false
+          includeRelease: true
+
+      - name: Upload portable executable (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/release/halftone-converter.exe
+          tag_name: ${{ github.ref_name }}
+          draft: true
+
+      - name: Upload portable executable (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/release/halftone-converter
+          tag_name: ${{ github.ref_name }}
+          draft: true
+
+      - name: Upload portable executable (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/release/halftone-converter
+          tag_name: ${{ github.ref_name }}
+          draft: true
