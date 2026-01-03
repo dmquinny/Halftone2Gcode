@@ -69,15 +69,74 @@ fn read_gcode_lines(file_path: String, start_line: usize, line_count: usize) -> 
     let file = std::fs::File::open(&file_path)
         .map_err(|e| format!("Failed to open file: {}", e))?;
 
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader
-        .lines()
-        .skip(start_line)
-        .take(line_count)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("Failed to read lines: {}", e))?;
+    let mut reader = BufReader::with_capacity(8192, file);
+    let mut result = Vec::with_capacity(line_count);
+    let mut current_line = 0;
 
-    Ok(lines.join("\n"))
+    // Skip lines more efficiently by not allocating strings for skipped lines
+    let mut buffer = String::new();
+    while current_line < start_line {
+        buffer.clear();
+        match reader.read_line(&mut buffer) {
+            Ok(0) => return Ok(String::new()), // EOF before reaching start_line
+            Ok(_) => current_line += 1,
+            Err(e) => return Err(format!("Failed to skip line: {}", e)),
+        }
+    }
+
+    // Now read the lines we actually want
+    for _ in 0..line_count {
+        buffer.clear();
+        match reader.read_line(&mut buffer) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                // Remove trailing newline if present
+                if buffer.ends_with('\n') {
+                    buffer.pop();
+                    if buffer.ends_with('\r') {
+                        buffer.pop();
+                    }
+                }
+                result.push(buffer.clone());
+            }
+            Err(e) => return Err(format!("Failed to read line: {}", e)),
+        }
+    }
+
+    Ok(result.join("\n"))
+}
+
+#[tauri::command]
+fn open_file_in_editor(file_path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &file_path])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&file_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&file_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    Ok(())
 }
 
 fn main() {
@@ -92,7 +151,8 @@ fn main() {
             write_gcode_chunk,
             finish_gcode_stream,
             read_gcode_file,
-            read_gcode_lines
+            read_gcode_lines,
+            open_file_in_editor
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

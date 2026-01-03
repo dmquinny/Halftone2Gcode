@@ -807,17 +807,14 @@
                 <div class="view-container" id="gcode-view">
                     <div class="output-section">
                         <h3>G-code Output</h3>
-                        <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
                             <button id="generateGcodeButton" disabled style="flex: 1;">Generate G-code</button>
                             <span id="gcodeProgress" style="min-width: 45px; font-weight: bold; color: #5B9BD5; display: none;"></span>
                         </div>
                         <div class="gcode-info" id="gcodeInfo"></div>
                         <div class="time-estimate" id="timeEstimate"></div>
-                        <div id="gcodeVirtualScroll" style="height: 400px; overflow-y: auto; overflow-x: auto; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; position: relative; white-space: pre;">
-                            <div id="gcodeScrollContent" style="position: relative;"></div>
-                        </div>
-                        <textarea id="gcodeOutput" readonly style="display: none;"></textarea>
-                        <div class="download-settings">
+                        <textarea id="gcodeOutput" readonly style="display: none; height: 400px; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
+                        <div class="download-settings" style="display: none;">
                             <div class="download-field">
                                 <label for="filenameInput">Filename:</label>
                                 <input type="text" id="filenameInput" value="halftone" placeholder="Enter filename">
@@ -832,7 +829,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 10px;">
+                        <div style="display: none; gap: 10px;">
                             <button id="downloadButton" disabled style="flex: 1;">Download G-code</button>
                             <button id="downloadBoundaryButton" disabled style="flex: 1; display: none;">Download Boundary Frame</button>
                         </div>

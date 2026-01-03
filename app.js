@@ -756,7 +756,18 @@ function initWorker() {
             
             currentHalftoneData = data;
             displayHalftone(currentHalftoneData);
-            
+
+            // Auto-set plotter line width heavy to match max line width
+            if (data.maxSize) {
+                const plotterLineWidthHeavyInput = document.getElementById('plotterLineWidthHeavy');
+                if (plotterLineWidthHeavyInput) {
+                    // Set the value to max line width
+                    plotterLineWidthHeavyInput.value = data.maxSize.toFixed(1);
+                    // Set the minimum to max line width so user can't go smaller
+                    plotterLineWidthHeavyInput.min = data.maxSize.toFixed(1);
+                }
+            }
+
             // Enable G-code generation
             generateGcodeButton.disabled = false;
             
@@ -2414,6 +2425,18 @@ function updateHalftonePreview() {
                 // Small delay to show 100%
                 setTimeout(() => {
                     displayHalftone(currentHalftoneData);
+
+                    // Auto-set plotter line width heavy to match max line width
+                    if (currentHalftoneData.maxSize) {
+                        const plotterLineWidthHeavyInput = document.getElementById('plotterLineWidthHeavy');
+                        if (plotterLineWidthHeavyInput) {
+                            // Set the value to max line width
+                            plotterLineWidthHeavyInput.value = currentHalftoneData.maxSize.toFixed(1);
+                            // Set the minimum to max line width so user can't go smaller
+                            plotterLineWidthHeavyInput.min = currentHalftoneData.maxSize.toFixed(1);
+                        }
+                    }
+
                     generateGcodeButton.disabled = false;
                     
                     const fallbackEnd = performance.now();

@@ -57,15 +57,24 @@ async function generateGcodeWithStreaming() {
         const timeEstimate = document.getElementById('timeEstimate');
         const generateGcodeButton = document.getElementById('generateGcodeButton');
 
-        // Update UI
-        if (gcodeOutput) gcodeOutput.value = 'Generating G-code (streaming to file)...';
+        // Update UI - hide textarea completely and hide separate progress counter
+        if (gcodeOutput) {
+            gcodeOutput.value = 'Generating G-code (streaming to file)...';
+            gcodeOutput.style.display = 'none';
+        }
+
+        // Extract just the filename from the full path for display
+        const filename = filePath.split(/[\\/]/).pop();
+
+        // Store filename globally for progress updates
+        window.currentGcodeFilename = filename;
+
         if (gcodeInfo) {
-            gcodeInfo.textContent = 'Writing...';
+            gcodeInfo.textContent = `Writing 0 lines of G-code to file "${filename}"`;
             gcodeInfo.style.color = '#5B9BD5';
         }
         if (gcodeProgress) {
-            gcodeProgress.textContent = '0';
-            gcodeProgress.style.display = 'inline';
+            gcodeProgress.style.display = 'none'; // Hide the separate progress counter
         }
         if (timeEstimate) timeEstimate.textContent = '';
         if (generateGcodeButton) generateGcodeButton.disabled = true;
@@ -143,58 +152,68 @@ async function generateGcodeWithStreaming() {
         // Finish streaming
         await streamer.finish();
 
-        // Show summary in output
-        const summary = `File saved successfully!\n\n` +
-                       `Lines: ${result.lineCount.toLocaleString()}\n` +
-                       `Distance: ${result.totalDistance.toFixed(1)}mm\n` +
-                       `File size: ${(result.lineCount * 43 / 1024 / 1024).toFixed(1)}MB\n\n` +
-                       `Use controls above to load preview lines.`;
+        // Keep textarea hidden
+        if (gcodeOutput) {
+            gcodeOutput.style.display = 'none';
+        }
 
-        if (gcodeOutput) gcodeOutput.value = summary;
-
-        // Store file info globally for preview
+        // Store file path for Open File button
         window.currentGcodeFile = {
             path: filePath,
             totalLines: result.lineCount
         };
 
-        // Add preview controls to the G-code info area
+        // Clear any large data structures that might be lingering
+        if (window.gcodeData) {
+            delete window.gcodeData;
+        }
+
+        // Add Open File button to the G-code info area
         if (gcodeInfo) {
             gcodeInfo.innerHTML = `
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                     <span>${result.totalDistance.toFixed(1)}mm • ${result.lineCount.toLocaleString()} lines</span>
                     <span style="margin: 0 8px;">|</span>
-                    <label style="font-size: 0.9em;">Line:</label>
-                    <input type="number" id="previewStartLine" value="1" min="1" max="${result.lineCount}"
-                           style="width: 80px; padding: 2px 5px; font-size: 0.9em;">
-                    <label style="font-size: 0.9em;">Count:</label>
-                    <input type="number" id="previewLineCount" value="1000" min="1" max="10000"
-                           style="width: 70px; padding: 2px 5px; font-size: 0.9em;">
-                    <button id="loadPreviewBtn" style="padding: 3px 10px; font-size: 0.9em; cursor: pointer;">
-                        Load
+                    <button id="openFileBtn" style="padding: 5px 15px; font-size: 0.95em; cursor: pointer; background-color: #5B9BD5; color: white; border: none; border-radius: 4px;">
+                        Open File
                     </button>
-                    <button onclick="document.getElementById('previewStartLine').value = 1; document.getElementById('loadPreviewBtn').click();"
-                            style="padding: 2px 8px; font-size: 0.85em; cursor: pointer;">Start</button>
-                    <button onclick="document.getElementById('previewStartLine').value = Math.floor(${result.lineCount} / 2); document.getElementById('loadPreviewBtn').click();"
-                            style="padding: 2px 8px; font-size: 0.85em; cursor: pointer;">Mid</button>
-                    <button onclick="document.getElementById('previewStartLine').value = Math.max(1, ${result.lineCount} - 999); document.getElementById('loadPreviewBtn').click();"
-                            style="padding: 2px 8px; font-size: 0.85em; cursor: pointer;">End</button>
                 </div>
             `;
 
-            // Add event listener for load button
-            const loadBtn = document.getElementById('loadPreviewBtn');
-            if (loadBtn) {
-                loadBtn.addEventListener('click', loadGcodePreview);
+            // Add event listener for Open File button
+            const openFileBtn = document.getElementById('openFileBtn');
+            if (openFileBtn) {
+                openFileBtn.addEventListener('click', async () => {
+                    try {
+                        const invoke = window.__TAURI_INTERNALS__.invoke;
+                        await invoke('open_file_in_editor', {
+                            filePath: filePath
+                        });
+                    } catch (error) {
+                        console.error('Failed to open file:', error);
+                        alert('Failed to open file: ' + error);
+                    }
+                });
             }
         }
 
         if (gcodeProgress) gcodeProgress.style.display = 'none';
 
         if (result.estimatedTime && timeEstimate) {
-            const minutes = Math.floor(result.estimatedTime / 60);
-            const seconds = Math.round(result.estimatedTime % 60);
-            timeEstimate.textContent = `Est. time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            const totalSeconds = Math.round(result.estimatedTime);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            let timeStr = 'Est. time: ';
+            if (hours > 0) {
+                timeStr += `${hours}hr ${minutes}min`;
+            } else if (minutes > 0) {
+                timeStr += `${minutes}min ${seconds}s`;
+            } else {
+                timeStr += `${seconds}s`;
+            }
+            timeEstimate.textContent = timeStr;
         }
 
         // Don't enable download button - file is already saved
@@ -232,66 +251,5 @@ async function generateGcodeWithStreaming() {
     }
 }
 
-// Function to load preview of specific line range
-async function loadGcodePreview() {
-    if (!window.currentGcodeFile) {
-        alert('No G-code file loaded');
-        return;
-    }
-
-    const startLineInput = document.getElementById('previewStartLine');
-    const lineCountInput = document.getElementById('previewLineCount');
-    const gcodeOutput = document.getElementById('gcodeOutput');
-
-    if (!startLineInput || !lineCountInput || !gcodeOutput) return;
-
-    const startLine = parseInt(startLineInput.value);
-    const lineCount = parseInt(lineCountInput.value);
-
-    // Validate inputs (user sees 1-based, we need 0-based for file reading)
-    if (isNaN(startLine) || startLine < 1 || startLine > window.currentGcodeFile.totalLines) {
-        alert(`Start line must be between 1 and ${window.currentGcodeFile.totalLines}`);
-        return;
-    }
-
-    if (isNaN(lineCount) || lineCount < 1 || lineCount > 10000) {
-        alert('Line count must be between 1 and 10000');
-        return;
-    }
-
-    try {
-        gcodeOutput.value = 'Loading preview...';
-
-        const invoke = window.__TAURI_INTERNALS__.invoke;
-        // Convert from 1-based display to 0-based file reading
-        const lines = await invoke('read_gcode_lines', {
-            filePath: window.currentGcodeFile.path,
-            startLine: startLine - 1,
-            lineCount: lineCount
-        });
-
-        // Add line numbers to display (show user-friendly 1-based line numbers)
-        const linesArray = lines.split('\n');
-        const numberedLines = linesArray.map((line, idx) => {
-            const lineNum = startLine + idx;
-            return `${lineNum.toString().padStart(6, ' ')}: ${line}`;
-        }).join('\n');
-
-        const actualLines = linesArray.length;
-        const endLine = startLine + actualLines - 1;
-        const header = `Showing lines ${startLine.toLocaleString()} - ${endLine.toLocaleString()} (${actualLines.toLocaleString()} lines)\n` +
-                      `File: ${window.currentGcodeFile.path}\n` +
-                      `${'='.repeat(80)}\n\n`;
-
-        gcodeOutput.value = header + numberedLines;
-
-    } catch (error) {
-        console.error('Failed to load preview:', error);
-        gcodeOutput.value = 'Error loading preview:\n' + error;
-        alert('Failed to load preview: ' + error);
-    }
-}
-
 // Export for use
 window.generateGcodeWithStreaming = generateGcodeWithStreaming;
-window.loadGcodePreview = loadGcodePreview;

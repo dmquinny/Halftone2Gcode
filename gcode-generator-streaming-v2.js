@@ -53,8 +53,10 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
         // Update progress every 1000 lines
         if (streamer.getLineCount() % 1000 === 0) {
-            if (typeof gcodeProgress !== 'undefined' && gcodeProgress) {
-                gcodeProgress.textContent = `${(streamer.getLineCount() / 1000).toFixed(0)}k`;
+            const gcodeInfo = document.getElementById('gcodeInfo');
+            if (gcodeInfo && window.currentGcodeFilename) {
+                const lineCount = streamer.getLineCount().toLocaleString();
+                gcodeInfo.textContent = `Writing ${lineCount} lines of G-code to file "${window.currentGcodeFilename}"`;
             }
         }
     };
@@ -95,12 +97,15 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     if (!plotterMode) {
         await writeLine(`M3 S${spindleSpeed} (Start spindle)`);
         await writeLine('G4 P2 (Wait 2 seconds for spindle to reach speed)');
+        totalTime += 2; // Spindle startup wait time
     }
 
     await writeLine(`F${cuttingFeedRate} (Set initial feed rate)`);
     await writeLine(`G0 Z${safeHeight.toFixed(1)} (Safe height)`);
     await writeLine('G0 X0.000 Y0.000 (Move to origin)');
     await writeLine('');
+    // Add time for initial positioning (assume machine starts at 0,0,0)
+    totalTime += (safeHeight / rapidRate) * 60; // Convert mm/min to seconds
 
     // === MAIN PATTERN GENERATION ===
     await writeLine('(Begin halftone pattern)');
@@ -128,8 +133,21 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                     if (plotterMode) {
                         // Plotter mode
                         if (plotterLineWidthMethod === 'pressure') {
-                            const pressure = plotterPressureMin + (point.depth * (plotterPressureMax - plotterPressureMin));
-                            depth = pressure;
+                            // point.depth is 0-1 representing brightness in the halftone
+                            // point.width contains the actual line width in mm from the halftone
+                            // Use point.width if available, otherwise calculate from point.depth and halftone maxSize
+                            const actualLineWidth = point.width !== undefined ? point.width :
+                                (point.depth * (halftoneData.maxSize || maxDepth * 2));
+
+                            // Interpolate Z pressure to achieve that line width
+                            // Linear interpolation between (plotterLineWidthLight, plotterPressureMin) and (plotterLineWidthHeavy, plotterPressureMax)
+                            const widthRange = plotterLineWidthHeavy - plotterLineWidthLight;
+                            const pressureRange = plotterPressureMax - plotterPressureMin;
+                            const widthRatio = widthRange > 0 ? (actualLineWidth - plotterLineWidthLight) / widthRange : 0;
+                            // Clamp widthRatio to 0-1 range
+                            const clampedRatio = Math.max(0, Math.min(1, widthRatio));
+                            depth = plotterPressureMin + (clampedRatio * pressureRange);
+                            lineWidth = actualLineWidth;
                         } else {
                             lineWidth = plotterLineWidthLight + (point.depth * (plotterLineWidthHeavy - plotterLineWidthLight));
                             depth = -lineWidth;
@@ -138,6 +156,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         if (i === 0) {
                             await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
                             rapidMoveCount++;
+                            const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                            totalTime += (rapidDist / rapidRate) * 60;
                         } else {
                             await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${depth.toFixed(3)}`);
                         }
@@ -151,6 +171,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             if (i === 0) {
                                 await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
                                 rapidMoveCount++;
+                                const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                                totalTime += (rapidDist / rapidRate) * 60;
 
                                 if (ramping && i + 1 < line.length) {
                                     const nextPoint = line[i + 1];
@@ -167,7 +189,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                         i++;
                                         const dist = Math.sqrt((nextX - x) ** 2 + (nextY - y) ** 2);
                                         totalCuttingDistance += dist;
-                                        totalTime += (rampDistance / plungeFeedRate) + ((dist - rampDistance) / cuttingFeedRate);
+                                        totalTime += ((rampDistance / plungeFeedRate) + ((dist - rampDistance) / cuttingFeedRate)) * 60;
                                         lastX = nextX;
                                         lastY = nextY;
                                         continue;
@@ -176,13 +198,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
                                 await writeLine(`G1 Z${(-depth).toFixed(3)} F${plungeFeedRate}`);
                                 lastZ = -depth;
-                                totalTime += depth / plungeFeedRate;
+                                totalTime += (depth / plungeFeedRate) * 60;
                             } else {
                                 // Include Z for variable depth engraving along the line
                                 await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${(-depth).toFixed(3)} F${cuttingFeedRate}`);
                                 const dist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2 + ((-depth) - lastZ) ** 2);
                                 totalCuttingDistance += dist;
-                                totalTime += dist / cuttingFeedRate;
+                                totalTime += (dist / cuttingFeedRate) * 60;
                                 lastZ = -depth;
                             }
 
@@ -196,7 +218,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                 if (!plotterMode) {
                     await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
                     lastZ = safeHeight;
-                    totalTime += (safeHeight + Math.abs(lastZ)) / rapidRate;
+                    totalTime += ((safeHeight + Math.abs(lastZ)) / rapidRate) * 60;
                 }
             }
         }
@@ -219,8 +241,16 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
                 if (plotterMode) {
                     if (plotterLineWidthMethod === 'pressure') {
-                        const pressure = plotterPressureMin + (element.depth * (plotterPressureMax - plotterPressureMin));
-                        depth = pressure;
+                        // element.size contains the actual size in mm from the halftone
+                        const actualLineWidth = element.size || (element.depth * (halftoneData.maxSize || maxDepth * 2));
+
+                        // Interpolate Z pressure to achieve that line width
+                        const widthRange = plotterLineWidthHeavy - plotterLineWidthLight;
+                        const pressureRange = plotterPressureMax - plotterPressureMin;
+                        const widthRatio = widthRange > 0 ? (actualLineWidth - plotterLineWidthLight) / widthRange : 0;
+                        // Clamp widthRatio to 0-1 range
+                        const clampedRatio = Math.max(0, Math.min(1, widthRatio));
+                        depth = plotterPressureMin + (clampedRatio * pressureRange);
                     } else {
                         const lineWidth = plotterLineWidthLight + (element.depth * (plotterLineWidthHeavy - plotterLineWidthLight));
                         depth = -lineWidth;
@@ -234,11 +264,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                 if ((!plotterMode && depth > minDepth) || plotterMode) {
                     await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
                     rapidMoveCount++;
+                    const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                    totalTime += (rapidDist / rapidRate) * 60;
 
                     if (!plotterMode) {
                         await writeLine(`G1 Z${(-depth).toFixed(3)} F${plungeFeedRate}`);
                         await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
-                        totalTime += (depth / plungeFeedRate) + ((safeHeight + depth) / rapidRate);
+                        totalTime += ((depth / plungeFeedRate) + ((safeHeight + depth) / rapidRate)) * 60;
                     } else {
                         await writeLine(`G1 Z${depth.toFixed(3)}`);
                     }
@@ -258,7 +290,14 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
         await writeLine('M5 (Stop spindle)');
     }
     await writeLine(`G0 Z${safeHeight.toFixed(1)} (Return to safe height)`);
+    // Add time for final Z move
+    totalTime += (Math.abs(safeHeight - lastZ) / rapidRate) * 60;
+
     await writeLine('G0 X0 Y0 (Return to origin)');
+    // Add time for final XY return to origin
+    const finalDist = Math.sqrt(lastX ** 2 + lastY ** 2);
+    totalTime += (finalDist / rapidRate) * 60;
+
     await writeLine('M30 (Program end)');
 
     // Return stats
