@@ -43,6 +43,7 @@ jobs:
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
+        id: tauri-build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -55,24 +56,27 @@ jobs:
 
       - name: Upload portable executable (Windows)
         if: matrix.platform == 'windows-latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/target/release/halftone-converter.exe
           tag_name: ${{ github.ref_name }}
           draft: true
+          append_body: false
 
       - name: Upload portable executable (macOS)
         if: matrix.platform == 'macos-latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/target/release/halftone-converter
           tag_name: ${{ github.ref_name }}
           draft: true
+          append_body: false
 
       - name: Upload portable executable (Linux)
         if: matrix.platform == 'ubuntu-22.04'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/target/release/halftone-converter
           tag_name: ${{ github.ref_name }}
           draft: true
+          append_body: false
