@@ -5,6 +5,77 @@
  * Memory usage: ~50-100MB regardless of output size
  */
 
+/**
+ * Generate G-code header lines (without writing to file)
+ * Returns array of header lines
+ */
+function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero, spindleSpeed, toolChange, vbitToolNumber, boundaryToolNumber, boundaryToolSize, multiPassCount, ramping, rampDistance, boundary, plotterMode, includeLineNumbers) {
+    const headerLines = [];
+    const patternType = halftoneData.patternType || 'lines';
+    const elementCount = halftoneData.lines ? halftoneData.lines.length : halftoneData.elements.length;
+    const workZeroLabel = workZero.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
+
+    // Build header
+    headerLines.push(`(Halftone ${patternType.charAt(0).toUpperCase() + patternType.slice(1)} Pattern G-code)`);
+    headerLines.push(plotterMode ? '(PLOTTER MODE - Pen Up/Down control)' : '(CUTTING MODE - Z-axis engraving)');
+    headerLines.push(`(Image size: ${halftoneData.width.toFixed(2)}mm x ${halftoneData.height.toFixed(2)}mm)`);
+    if (!plotterMode) headerLines.push(`(Max depth: ${maxDepth}mm)`);
+    headerLines.push(`(Safe Z height: ${safeHeight}mm)`);
+    if (!plotterMode) headerLines.push(`(Spindle speed: ${spindleSpeed} RPM)`);
+    if (!plotterMode) headerLines.push(`(V-bit angle: ${vbitAngle}°)`);
+    if (toolChange && !plotterMode) headerLines.push(`(V-bit tool: T${vbitToolNumber})`);
+    if (boundary && toolChange) headerLines.push(`(Boundary frame tool: T${boundaryToolNumber}, ${boundaryToolSize}mm diameter)`);
+    if (!plotterMode) headerLines.push(`(Cutting feed rate: ${cuttingFeedRate}mm/min)`);
+    if (!plotterMode) headerLines.push(`(Plunge feed rate: ${plungeFeedRate}mm/min)`);
+    headerLines.push(`(Work zero position: ${workZeroLabel})`);
+    headerLines.push(`(Total elements: ${elementCount})`);
+    if (multiPassCount > 1 && !plotterMode) headerLines.push(`(Halftone passes: ${multiPassCount})`);
+    if (ramping && !plotterMode) headerLines.push(`(Z-ramping enabled: ${rampDistance}mm)`);
+    if (boundary) headerLines.push(`(Boundary frame enabled at border edge)`);
+    headerLines.push(`(Generated for grblHAL)`);
+    headerLines.push('');
+    headerLines.push('G21 (Metric units)');
+    headerLines.push('G90 (Absolute positioning)');
+    headerLines.push('G17 (XY plane)');
+    headerLines.push('G94 (Feed per minute)');
+    headerLines.push('G54 (Work coordinate system)');
+    headerLines.push('');
+
+    if (toolChange) {
+        headerLines.push(`T${vbitToolNumber} M6 (Load V-bit tool)`);
+        headerLines.push('G43 H1 (Tool length offset)');
+    }
+
+    if (!plotterMode) {
+        headerLines.push(`M3 S${spindleSpeed} (Start spindle)`);
+        headerLines.push('G4 P2 (Wait 2 seconds for spindle to reach speed)');
+    }
+
+    headerLines.push(`F${cuttingFeedRate} (Set initial feed rate)`);
+    headerLines.push(`G0 Z${safeHeight.toFixed(1)} (Safe height)`);
+    headerLines.push('G0 X0.000 Y0.000 (Move to origin)');
+    headerLines.push('');
+
+    return headerLines;
+}
+
+/**
+ * Generate G-code footer lines (without writing to file)
+ * Returns array of footer lines
+ */
+function generateGcodeFooter(safeHeight, plotterMode) {
+    const footerLines = [];
+
+    if (!plotterMode) {
+        footerLines.push('M5 (Stop spindle)');
+    }
+    footerLines.push(`G0 Z${safeHeight.toFixed(1)} (Return to safe height)`);
+    footerLines.push('G0 X0 Y0 (Return to origin)');
+    footerLines.push('M30 (Program end)');
+
+    return footerLines;
+}
+
 async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, streamer) {
 
     // Time estimation variables
@@ -62,48 +133,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     };
 
     // === HEADER ===
-    const workZeroLabel = workZero.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
+    // NOTE: Header is now written by the GcodeStreamer via start() method
+    // This ensures each file part gets a proper header
 
-    await writeLine(`(Halftone ${patternType.charAt(0).toUpperCase() + patternType.slice(1)} Pattern G-code)`);
-    await writeLine(plotterMode ? '(PLOTTER MODE - Pen Up/Down control)' : '(CUTTING MODE - Z-axis engraving)');
-    await writeLine(`(Image size: ${halftoneData.width.toFixed(2)}mm x ${halftoneData.height.toFixed(2)}mm)`);
-    if (!plotterMode) await writeLine(`(Max depth: ${maxDepth}mm)`);
-    await writeLine(`(Safe Z height: ${safeHeight}mm)`);
-    if (!plotterMode) await writeLine(`(Spindle speed: ${spindleSpeed} RPM)`);
-    if (!plotterMode) await writeLine(`(V-bit angle: ${vbitAngle}°)`);
-    if (toolChange && !plotterMode) await writeLine(`(V-bit tool: T${vbitToolNumber})`);
-    if (boundary && toolChange) await writeLine(`(Boundary frame tool: T${boundaryToolNumber}, ${boundaryToolSize}mm diameter)`);
-    if (!plotterMode) await writeLine(`(Cutting feed rate: ${cuttingFeedRate}mm/min)`);
-    if (!plotterMode) await writeLine(`(Plunge feed rate: ${plungeFeedRate}mm/min)`);
-    await writeLine(`(Work zero position: ${workZeroLabel})`);
-    await writeLine(`(Total elements: ${elementCount})`);
-    if (multiPassCount > 1 && !plotterMode) await writeLine(`(Halftone passes: ${multiPassCount})`);
-    if (ramping && !plotterMode) await writeLine(`(Z-ramping enabled: ${rampDistance}mm)`);
-    if (boundary) await writeLine(`(Boundary frame enabled at border edge)`);
-    await writeLine(`(Generated for grblHAL)`);
-    await writeLine('');
-    await writeLine('G21 (Metric units)');
-    await writeLine('G90 (Absolute positioning)');
-    await writeLine('G17 (XY plane)');
-    await writeLine('G94 (Feed per minute)');
-    await writeLine('G54 (Work coordinate system)');
-    await writeLine('');
-
-    if (toolChange) {
-        await writeLine(`T${vbitToolNumber} M6 (Load V-bit tool)`);
-        await writeLine('G43 H1 (Tool length offset)');
-    }
-
+    // Account for header time in estimation
     if (!plotterMode) {
-        await writeLine(`M3 S${spindleSpeed} (Start spindle)`);
-        await writeLine('G4 P2 (Wait 2 seconds for spindle to reach speed)');
         totalTime += 2; // Spindle startup wait time
     }
-
-    await writeLine(`F${cuttingFeedRate} (Set initial feed rate)`);
-    await writeLine(`G0 Z${safeHeight.toFixed(1)} (Safe height)`);
-    await writeLine('G0 X0.000 Y0.000 (Move to origin)');
-    await writeLine('');
     // Add time for initial positioning (assume machine starts at 0,0,0)
     totalTime += (safeHeight / rapidRate) * 60; // Convert mm/min to seconds
 
@@ -415,19 +451,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     await writeLine('');
 
     // === FOOTER ===
-    if (!plotterMode) {
-        await writeLine('M5 (Stop spindle)');
-    }
-    await writeLine(`G0 Z${safeHeight.toFixed(1)} (Return to safe height)`);
-    // Add time for final Z move
-    totalTime += (Math.abs(safeHeight - lastZ) / rapidRate) * 60;
+    // NOTE: Footer is now written by the GcodeStreamer via finish() method
+    // This ensures each file part gets a proper footer
 
-    await writeLine('G0 X0 Y0 (Return to origin)');
-    // Add time for final XY return to origin
+    // Account for footer time in estimation
+    totalTime += (Math.abs(safeHeight - lastZ) / rapidRate) * 60;
     const finalDist = Math.sqrt(lastX ** 2 + lastY ** 2);
     totalTime += (finalDist / rapidRate) * 60;
-
-    await writeLine('M30 (Program end)');
 
     // Return stats
     return {
@@ -440,3 +470,5 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
 // Export for use
 window.generateGcodeStreaming = generateGcodeStreaming;
+window.generateGcodeHeader = generateGcodeHeader;
+window.generateGcodeFooter = generateGcodeFooter;

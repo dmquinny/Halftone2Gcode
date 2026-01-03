@@ -111,9 +111,37 @@ async function generateGcodeWithStreaming() {
         const plotterLineWidthLight = parseFloat(plotterLineWidthLightInput?.value || 0.3);
         const plotterLineWidthHeavy = parseFloat(plotterLineWidthHeavyInput?.value || 1.0);
 
-        // Create streamer
+        // Get file splitting parameters
+        const splitFiles = splitFilesToggle?.checked || false;
+        const maxLinesPerFile = splitFiles ? parseInt(maxLinesPerFileInput?.value || 50000) : 0;
+
+        // Generate header and footer arrays for file splitting
+        const headerLines = generateGcodeHeader(
+            currentHalftoneData,
+            maxDepth,
+            safeHeight,
+            cuttingFeedRate,
+            plungeFeedRate,
+            vbitAngle,
+            workZero,
+            spindleSpeed,
+            toolChange,
+            vbitToolNumber,
+            boundaryToolNumber,
+            boundaryToolSize,
+            multiPassCount,
+            ramping,
+            rampDistance,
+            boundary,
+            plotterMode,
+            includeLineNumbers
+        );
+
+        const footerLines = generateGcodeFooter(safeHeight, plotterMode);
+
+        // Create streamer with splitting support
         const streamer = new GcodeStreamer();
-        await streamer.start(filePath);
+        await streamer.start(filePath, maxLinesPerFile, headerLines, footerLines);
 
         // Call streaming G-code generator
         const result = await generateGcodeStreaming(
@@ -230,7 +258,21 @@ async function generateGcodeWithStreaming() {
 
         if (generateGcodeButton) generateGcodeButton.disabled = false;
 
-        alert(`✅ Success!\n\nG-code saved to:\n${filePath}\n\n${result.lineCount} lines generated`);
+        // Create success message with file information
+        let successMessage = '✅ Success!\n\n';
+
+        if (result.fileCount > 1) {
+            successMessage += `Generated ${result.fileCount} files:\n`;
+            for (let i = 0; i < result.files.length; i++) {
+                const fileName = result.files[i].split(/[\\/]/).pop();
+                successMessage += `- ${fileName}\n`;
+            }
+            successMessage += `\nTotal: ${result.lineCount.toLocaleString()} lines`;
+        } else {
+            successMessage += `G-code saved to:\n${filePath}\n\n${result.lineCount.toLocaleString()} lines generated`;
+        }
+
+        alert(successMessage);
 
         return true;
 
