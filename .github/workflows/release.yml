@@ -43,7 +43,6 @@ jobs:
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
-        id: tauri-build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -52,71 +51,64 @@ jobs:
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: false
           prerelease: false
-          includeRelease: true
 
-      - name: Check and upload portable executable (Windows)
+      - name: Rename and upload portable executable (Windows)
         if: matrix.platform == 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -f "src-tauri/target/release/halftone-converter.exe" ]; then
-            echo "Found portable executable"
-            ls -lh src-tauri/target/release/halftone-converter.exe
-          else
-            echo "Portable executable not found!"
-            ls -la src-tauri/target/release/
-          fi
+          # Copy and rename the portable executable
+          cp src-tauri/target/release/halftone-converter.exe halftone-converter-windows-portable.exe
+
+          # Get the release ID from the tag
+          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+            | jq -r '.id')
+
+          # Upload the portable executable
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @halftone-converter-windows-portable.exe \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-windows-portable.exe"
         shell: bash
 
-      - name: Upload Windows portable
-        if: matrix.platform == 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.tauri-build.outputs.releaseUploadUrl }}
-          asset_path: src-tauri/target/release/halftone-converter.exe
-          asset_name: halftone-converter.exe
-          asset_content_type: application/octet-stream
-
-      - name: Check and upload portable executable (macOS)
+      - name: Rename and upload portable executable (macOS)
         if: matrix.platform == 'macos-latest'
-        run: |
-          if [ -f "src-tauri/target/release/halftone-converter" ]; then
-            echo "Found portable executable"
-            ls -lh src-tauri/target/release/halftone-converter
-          else
-            echo "Portable executable not found!"
-            ls -la src-tauri/target/release/
-          fi
-
-      - name: Upload macOS portable
-        if: matrix.platform == 'macos-latest'
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.tauri-build.outputs.releaseUploadUrl }}
-          asset_path: src-tauri/target/release/halftone-converter
-          asset_name: halftone-converter-macos
-          asset_content_type: application/octet-stream
-
-      - name: Check and upload portable executable (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
         run: |
-          if [ -f "src-tauri/target/release/halftone-converter" ]; then
-            echo "Found portable executable"
-            ls -lh src-tauri/target/release/halftone-converter
-          else
-            echo "Portable executable not found!"
-            ls -la src-tauri/target/release/
-          fi
+          # Copy and rename the portable executable
+          cp src-tauri/target/release/halftone-converter halftone-converter-macos-portable
 
-      - name: Upload Linux portable
+          # Get the release ID from the tag
+          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+            | jq -r '.id')
+
+          # Upload the portable executable
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @halftone-converter-macos-portable \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-macos-portable"
+
+      - name: Rename and upload portable executable (Linux)
         if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.tauri-build.outputs.releaseUploadUrl }}
-          asset_path: src-tauri/target/release/halftone-converter
-          asset_name: halftone-converter-linux
-          asset_content_type: application/octet-stream
+        run: |
+          # Copy and rename the portable executable
+          cp src-tauri/target/release/halftone-converter halftone-converter-linux-portable
+
+          # Get the release ID from the tag
+          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+            | jq -r '.id')
+
+          # Upload the portable executable
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @halftone-converter-linux-portable \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-linux-portable"
