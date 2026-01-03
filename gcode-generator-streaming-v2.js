@@ -25,8 +25,8 @@ function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate
     if (!plotterMode) headerLines.push(`(V-bit angle: ${vbitAngle}°)`);
     if (toolChange && !plotterMode) headerLines.push(`(V-bit tool: T${vbitToolNumber})`);
     if (boundary && toolChange) headerLines.push(`(Boundary frame tool: T${boundaryToolNumber}, ${boundaryToolSize}mm diameter)`);
-    if (!plotterMode) headerLines.push(`(Cutting feed rate: ${cuttingFeedRate}mm/min)`);
-    if (!plotterMode) headerLines.push(`(Plunge feed rate: ${plungeFeedRate}mm/min)`);
+    headerLines.push(`(Cutting feed rate: ${cuttingFeedRate}mm/min)`);
+    headerLines.push(`(Plunge feed rate: ${plungeFeedRate}mm/min)`);
     headerLines.push(`(Work zero position: ${workZeroLabel})`);
     headerLines.push(`(Total elements: ${elementCount})`);
     if (multiPassCount > 1 && !plotterMode) headerLines.push(`(Halftone passes: ${multiPassCount})`);
