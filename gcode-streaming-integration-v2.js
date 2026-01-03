@@ -132,13 +132,13 @@ async function generateGcodeWithStreaming() {
         // Finish streaming
         await streamer.finish();
 
-        // Show summary and preview controls
+        // Show summary in output
         const gcodeOut = document.getElementById('gcodeOutput');
-        const summary = `✅ G-code successfully saved to:\n${filePath}\n\n` +
-                       `${result.lineCount.toLocaleString()} lines generated\n` +
-                       `${result.totalDistance.toFixed(1)}mm total distance\n` +
+        const summary = `File saved successfully!\n\n` +
+                       `Lines: ${result.lineCount.toLocaleString()}\n` +
+                       `Distance: ${result.totalDistance.toFixed(1)}mm\n` +
                        `File size: ${(result.lineCount * 43 / 1024 / 1024).toFixed(1)}MB\n\n` +
-                       `Use the controls below to preview specific lines.`;
+                       `Use controls above to load preview lines.`;
 
         if (gcodeOut) gcodeOut.value = summary;
 
@@ -148,41 +148,28 @@ async function generateGcodeWithStreaming() {
             totalLines: result.lineCount
         };
 
-        // Create preview controls
-        const gcodeScrollContent = document.getElementById('gcodeScrollContent');
-        if (gcodeScrollContent) {
-            gcodeScrollContent.innerHTML = `
-                <div style="padding: 20px;">
-                    <div style="margin-bottom: 15px; color: #28a745; font-weight: bold;">
-                        ✅ File saved successfully
-                    </div>
-                    <div style="margin-bottom: 15px; color: #666;">
-                        Total lines: ${result.lineCount.toLocaleString()}
-                    </div>
-                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
-                        <label>Start line:</label>
-                        <input type="number" id="previewStartLine" value="0" min="0" max="${result.lineCount - 1}"
-                               style="width: 100px; padding: 5px;">
-                        <label>Lines to show:</label>
-                        <input type="number" id="previewLineCount" value="1000" min="1" max="10000"
-                               style="width: 100px; padding: 5px;">
-                        <button id="loadPreviewBtn" style="padding: 5px 15px; cursor: pointer;">
-                            Load Preview
-                        </button>
-                    </div>
-                    <div style="margin-bottom: 10px; color: #666; font-size: 0.9em;">
-                        Quick jump:
-                        <button onclick="document.getElementById('previewStartLine').value = 0; document.getElementById('loadPreviewBtn').click();"
-                                style="padding: 3px 10px; margin: 0 5px; cursor: pointer;">Start</button>
-                        <button onclick="document.getElementById('previewStartLine').value = Math.floor(${result.lineCount} / 2); document.getElementById('loadPreviewBtn').click();"
-                                style="padding: 3px 10px; margin: 0 5px; cursor: pointer;">Middle</button>
-                        <button onclick="document.getElementById('previewStartLine').value = Math.max(0, ${result.lineCount} - 1000); document.getElementById('loadPreviewBtn').click();"
-                                style="padding: 3px 10px; margin: 0 5px; cursor: pointer;">End</button>
-                    </div>
-                    <div id="previewStatus" style="margin-bottom: 10px; color: #666; font-size: 0.9em;"></div>
-                    <div id="previewContent" style="font-family: monospace; white-space: pre; overflow: auto; max-height: 400px; background: #f5f5f5; padding: 10px; border: 1px solid #ddd;">
-                        Click "Load Preview" to view G-code lines
-                    </div>
+        // Add preview controls to the G-code info area
+        const gcodeInfo = document.getElementById('gcodeInfo');
+        if (gcodeInfo) {
+            gcodeInfo.innerHTML = `
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <span>${result.totalDistance.toFixed(1)}mm • ${result.lineCount.toLocaleString()} lines</span>
+                    <span style="margin: 0 8px;">|</span>
+                    <label style="font-size: 0.9em;">Line:</label>
+                    <input type="number" id="previewStartLine" value="1" min="1" max="${result.lineCount}"
+                           style="width: 80px; padding: 2px 5px; font-size: 0.9em;">
+                    <label style="font-size: 0.9em;">Count:</label>
+                    <input type="number" id="previewLineCount" value="1000" min="1" max="10000"
+                           style="width: 70px; padding: 2px 5px; font-size: 0.9em;">
+                    <button id="loadPreviewBtn" style="padding: 3px 10px; font-size: 0.9em; cursor: pointer;">
+                        Load
+                    </button>
+                    <button onclick="document.getElementById('previewStartLine').value = 1; document.getElementById('loadPreviewBtn').click();"
+                            style="padding: 2px 8px; font-size: 0.85em; cursor: pointer;">Start</button>
+                    <button onclick="document.getElementById('previewStartLine').value = Math.floor(${result.lineCount} / 2); document.getElementById('loadPreviewBtn').click();"
+                            style="padding: 2px 8px; font-size: 0.85em; cursor: pointer;">Mid</button>
+                    <button onclick="document.getElementById('previewStartLine').value = Math.max(1, ${result.lineCount} - 999); document.getElementById('loadPreviewBtn').click();"
+                            style="padding: 2px 8px; font-size: 0.85em; cursor: pointer;">End</button>
                 </div>
             `;
 
@@ -193,9 +180,8 @@ async function generateGcodeWithStreaming() {
             }
         }
 
-        gcodeInfo.textContent = `${result.totalDistance.toFixed(1)}mm distance • ${result.lineCount} lines • ${result.rapidMoveCount || 0} rapid moves`;
-        gcodeInfo.style.color = '#28a745';
-        gcodeProgress.style.display = 'none';
+        const gcodeProgress = document.getElementById('gcodeProgress');
+        if (gcodeProgress) gcodeProgress.style.display = 'none';
 
         if (result.estimatedTime) {
             const minutes = Math.floor(result.estimatedTime / 60);
@@ -252,17 +238,16 @@ async function loadGcodePreview() {
 
     const startLineInput = document.getElementById('previewStartLine');
     const lineCountInput = document.getElementById('previewLineCount');
-    const statusDiv = document.getElementById('previewStatus');
-    const contentDiv = document.getElementById('previewContent');
+    const gcodeOutput = document.getElementById('gcodeOutput');
 
-    if (!startLineInput || !lineCountInput || !contentDiv) return;
+    if (!startLineInput || !lineCountInput || !gcodeOutput) return;
 
     const startLine = parseInt(startLineInput.value);
     const lineCount = parseInt(lineCountInput.value);
 
-    // Validate inputs
-    if (isNaN(startLine) || startLine < 0 || startLine >= window.currentGcodeFile.totalLines) {
-        alert(`Start line must be between 0 and ${window.currentGcodeFile.totalLines - 1}`);
+    // Validate inputs (user sees 1-based, we need 0-based for file reading)
+    if (isNaN(startLine) || startLine < 1 || startLine > window.currentGcodeFile.totalLines) {
+        alert(`Start line must be between 1 and ${window.currentGcodeFile.totalLines}`);
         return;
     }
 
@@ -272,35 +257,35 @@ async function loadGcodePreview() {
     }
 
     try {
-        if (statusDiv) statusDiv.textContent = 'Loading...';
-        contentDiv.textContent = 'Loading...';
+        gcodeOutput.value = 'Loading preview...';
 
         const invoke = window.__TAURI_INTERNALS__.invoke;
+        // Convert from 1-based display to 0-based file reading
         const lines = await invoke('read_gcode_lines', {
             filePath: window.currentGcodeFile.path,
-            startLine: startLine,
+            startLine: startLine - 1,
             lineCount: lineCount
         });
 
-        // Add line numbers to display
+        // Add line numbers to display (show user-friendly 1-based line numbers)
         const linesArray = lines.split('\n');
         const numberedLines = linesArray.map((line, idx) => {
             const lineNum = startLine + idx;
             return `${lineNum.toString().padStart(6, ' ')}: ${line}`;
         }).join('\n');
 
-        contentDiv.textContent = numberedLines;
-
         const actualLines = linesArray.length;
         const endLine = startLine + actualLines - 1;
-        if (statusDiv) {
-            statusDiv.textContent = `Showing lines ${startLine.toLocaleString()} - ${endLine.toLocaleString()} (${actualLines.toLocaleString()} lines)`;
-        }
+        const header = `Showing lines ${startLine.toLocaleString()} - ${endLine.toLocaleString()} (${actualLines.toLocaleString()} lines)\n` +
+                      `File: ${window.currentGcodeFile.path}\n` +
+                      `${'='.repeat(80)}\n\n`;
+
+        gcodeOutput.value = header + numberedLines;
 
     } catch (error) {
         console.error('Failed to load preview:', error);
-        contentDiv.textContent = 'Error loading preview: ' + error;
-        if (statusDiv) statusDiv.textContent = 'Error';
+        gcodeOutput.value = 'Error loading preview:\n' + error;
+        alert('Failed to load preview: ' + error);
     }
 }
 
