@@ -104,12 +104,12 @@ async function generateGcodeWithStreaming() {
         const borderCuttingFeedRate = parseFloat(borderCuttingFeedRateInput.value) || cuttingFeedRate;
         const plotterMode = plotterModeToggle.checked;
         const plotterLineWidthMethodValue = document.getElementById('plotterLineWidthMethod')?.value || 'pressure';
-        const plotterPressureMin = parseFloat(plotterPressureMinInput.value);
-        const plotterPressureMax = parseFloat(plotterPressureMaxInput.value);
-        const plotterPenWidth = parseFloat(plotterPenWidthInput.value);
-        const plotterPenSize = parseFloat(plotterPenSizeInput.value);
-        const plotterLineWidthLight = parseFloat(plotterLineWidthLightInput.value);
-        const plotterLineWidthHeavy = parseFloat(plotterLineWidthHeavyInput.value);
+        const plotterPressureMin = parseFloat(plotterPressureMinInput?.value || 0);
+        const plotterPressureMax = parseFloat(plotterPressureMaxInput?.value || -0.5);
+        const plotterPenWidth = parseFloat(plotterPenWidthInput?.value || 0.5); // Legacy parameter, not used anymore
+        const plotterPenSize = parseFloat(plotterPenSizeInput?.value || 0.5);
+        const plotterLineWidthLight = parseFloat(plotterLineWidthLightInput?.value || 0.3);
+        const plotterLineWidthHeavy = parseFloat(plotterLineWidthHeavyInput?.value || 1.0);
 
         // Create streamer
         const streamer = new GcodeStreamer();
