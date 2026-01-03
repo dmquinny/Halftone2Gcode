@@ -148,18 +148,64 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             const clampedRatio = Math.max(0, Math.min(1, widthRatio));
                             depth = plotterPressureMin + (clampedRatio * pressureRange);
                             lineWidth = actualLineWidth;
-                        } else {
-                            lineWidth = plotterLineWidthLight + (point.depth * (plotterLineWidthHeavy - plotterLineWidthLight));
-                            depth = -lineWidth;
-                        }
 
-                        if (i === 0) {
-                            await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
-                            rapidMoveCount++;
-                            const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                            totalTime += (rapidDist / rapidRate) * 60;
+                            if (i === 0) {
+                                await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
+                                rapidMoveCount++;
+                                const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                                totalTime += (rapidDist / rapidRate) * 60;
+                            } else {
+                                await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${depth.toFixed(3)}`);
+                            }
                         } else {
-                            await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${depth.toFixed(3)}`);
+                            // Parallel offset method: draw multiple passes for thickness
+                            const penWidth = plotterPenWidth;
+                            const numPasses = Math.max(1, Math.round(point.depth * 5));
+
+                            for (let offsetPass = 0; offsetPass < numPasses; offsetPass++) {
+                                const offsetDist = (offsetPass - (numPasses - 1) / 2) * (penWidth / 3);
+
+                                // Calculate perpendicular offset
+                                let offsetX = x;
+                                let offsetY = y;
+                                if (i > 0) {
+                                    const prevPoint = line[i - 1];
+                                    const prevX = (prevPoint.x * pixelsToMM) + xOffset;
+                                    const prevY = (prevPoint.y * pixelsToMM) + yOffset;
+                                    const dx = x - prevX;
+                                    const dy = y - prevY;
+                                    const dist = Math.sqrt(dx * dx + dy * dy);
+                                    if (dist > 0.01) {
+                                        const perpX = -dy / dist;
+                                        const perpY = dx / dist;
+                                        offsetX += perpX * offsetDist;
+                                        offsetY += perpY * offsetDist;
+                                    }
+                                }
+
+                                if (i === 0 && offsetPass === 0) {
+                                    // First point of first pass: rapid move
+                                    await writeLine(`G0 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)}`);
+                                    rapidMoveCount++;
+                                    const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
+                                    totalTime += (rapidDist / rapidRate) * 60;
+                                } else if (offsetPass > 0 && i === 0) {
+                                    // First point of subsequent passes: lift pen, rapid move, lower pen
+                                    await writeLine(`G0 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)}`);
+                                    rapidMoveCount++;
+                                    const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
+                                    totalTime += (rapidDist / rapidRate) * 60;
+                                } else {
+                                    // Drawing move
+                                    await writeLine(`G1 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)} F${cuttingFeedRate}`);
+                                    const drawDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
+                                    totalCuttingDistance += drawDist;
+                                    totalTime += (drawDist / cuttingFeedRate) * 60;
+                                }
+
+                                lastX = offsetX;
+                                lastY = offsetY;
+                            }
                         }
                     } else {
                         // Cutting mode
