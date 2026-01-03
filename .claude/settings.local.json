@@ -26,7 +26,8 @@
       "Bash(ls:*)",
       "Bash(node copy-files.js:*)",
       "Bash(npm run copy-files:*)",
-      "Bash(del TAURI_SETUP.md QUICK_START.md WINDOWS_SETUP.md INSTALL.md FIX_YOUR_ERROR.md STREAMING_GCODE.md MEMORY_FIX_SUMMARY.md INTEGRATION_STEPS.md REFACTORING_PLAN.md MODULAR_README.md MODULAR_QUICKSTART.md STREAMING_INTEGRATION_INSTRUCTIONS.md STREAMING_FIX.md FINAL_STREAMING_SOLUTION.md STREAMING_COMPLETE.md)"
+      "Bash(del TAURI_SETUP.md QUICK_START.md WINDOWS_SETUP.md INSTALL.md FIX_YOUR_ERROR.md STREAMING_GCODE.md MEMORY_FIX_SUMMARY.md INTEGRATION_STEPS.md REFACTORING_PLAN.md MODULAR_README.md MODULAR_QUICKSTART.md STREAMING_INTEGRATION_INSTRUCTIONS.md STREAMING_FIX.md FINAL_STREAMING_SOLUTION.md STREAMING_COMPLETE.md)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: Halftone to G-code Converter with memory-efficient streaming\n\n- Native desktop app built with Tauri for Windows, macOS, and Linux\n- Memory-efficient streaming architecture \\(640k+ lines using only ~100MB RAM\\)\n- Direct file writing via Rust backend eliminates 3.6GB memory bloat\n- Line-by-line preview system for inspecting large G-code files\n- Support for halftone patterns: lines, dots, squares, circles\n- Variable depth V-bit engraving with automatic depth calculation\n- Plotter mode with pen pressure/line width control\n- Multi-pass engraving, Z-axis ramping, toolpath optimization\n- Preset management for quick workflow\n- GitHub Actions workflow for multi-platform builds\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
