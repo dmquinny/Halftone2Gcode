@@ -687,6 +687,29 @@
                 <p class="help-text">Alternate cutting direction to reduce rapid moves</p>
             </div>
 
+            <div class="control-group" id="splitFiles-group">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="splitFilesToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Split Into Multiple Files</span>
+                </label>
+                <p class="help-text">Split large G-code into multiple files with headers/footers</p>
+            </div>
+
+            <div class="control-group sub-option" id="maxLinesPerFile-group" style="display: none;">
+                <label for="maxLinesPerFile">
+                    Max Lines Per File:
+                </label>
+                <div class="input-group">
+                    <button class="decrement-btn" data-target="maxLinesPerFile">-</button>
+                    <input type="number" id="maxLinesPerFile" min="1000" max="1000000" step="1000" value="50000">
+                    <button class="increment-btn" data-target="maxLinesPerFile">+</button>
+                </div>
+                <p class="help-text">Maximum lines of G-code per file (each file gets complete header/footer)</p>
+            </div>
+
             <div class="control-group" id="plotter-group">
                 <label style="display: flex; align-items: center; gap: 10px;">
                     <label class="toggle-switch">

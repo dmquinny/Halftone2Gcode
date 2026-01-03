@@ -67,6 +67,8 @@ const autoAdjustButton = document.getElementById('autoAdjustButton');
 const lineNumbersToggle = document.getElementById('lineNumbersToggle');
 const optimizeToolpathToggle = document.getElementById('optimizeToolpathToggle');
 const bidirectionalToggle = document.getElementById('bidirectionalToggle');
+const splitFilesToggle = document.getElementById('splitFilesToggle');
+const maxLinesPerFileInput = document.getElementById('maxLinesPerFile');
 const toolChangeToggle = document.getElementById('toolChangeToggle');
 const vbitToolNumberInput = document.getElementById('vbitToolNumber');
 const vbitToolNumberGroup = document.getElementById('vbitToolNumber-group');
@@ -1281,6 +1283,13 @@ boundaryToggle.addEventListener('change', () => {
     // Show boundary tool NUMBER only if both boundary and tool changer are enabled
     if (toolChangeToggle.checked) {
         boundaryToolNumberGroup.style.display = isChecked ? 'flex' : 'none';
+    }
+});
+
+splitFilesToggle.addEventListener('change', () => {
+    const maxLinesPerFileGroup = document.getElementById('maxLinesPerFile-group');
+    if (maxLinesPerFileGroup) {
+        maxLinesPerFileGroup.style.display = splitFilesToggle.checked ? 'flex' : 'none';
     }
 });
 
