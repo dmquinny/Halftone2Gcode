@@ -162,7 +162,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                 for (let i = 0; i < line.length; i++) {
                     const point = line[i];
                     const x = (point.x * pixelsToMM) + xOffset;
-                    const y = (point.y * pixelsToMM) + yOffset;
+                    // Flip Y coordinate: image Y increases down, CNC Y increases up
+                    const y = (halftoneData.height - (point.y * pixelsToMM)) + yOffset;
 
                     let depth, lineWidth;
 
@@ -194,12 +195,17 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${depth.toFixed(3)}`);
                             }
                         } else {
-                            // Set Pen Size method: draw multiple passes for thickness
+                            // Set Pen Size method: draw multiple passes based on actual line width
                             const penSize = plotterPenSize;
-                            const numPasses = Math.max(1, Math.round(point.depth * 5));
+                            // Get actual line width from halftone data
+                            const actualLineWidth = point.width !== undefined ? point.width :
+                                (point.depth * (halftoneData.maxSize || maxDepth * 2));
+                            // Calculate number of passes needed to cover the line width
+                            const numPasses = Math.max(1, Math.ceil(actualLineWidth / penSize));
 
                             for (let offsetPass = 0; offsetPass < numPasses; offsetPass++) {
-                                const offsetDist = (offsetPass - (numPasses - 1) / 2) * (penSize / 3);
+                                // Center the passes around the line center
+                                const offsetDist = (offsetPass - (numPasses - 1) / 2) * penSize;
 
                                 // Calculate perpendicular offset
                                 let offsetX = x;
@@ -323,7 +329,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
             for (let i = 0; i < elements.length; i++) {
                 const element = elements[i];
                 const x = element.x + xOffset;
-                const y = element.y + yOffset;
+                // Flip Y coordinate: image Y increases down, CNC Y increases up
+                const y = (halftoneData.height - element.y) + yOffset;
 
                 let depth;
 
@@ -348,10 +355,11 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         lastX = x;
                         lastY = y;
                     } else {
-                        // Set Pen Size method: generate concentric paths based on element size
+                        // Set Pen Size method: generate concentric paths based on actual element size
                         const penSize = plotterPenSize;
                         const elementSize = element.size || (element.depth * (halftoneData.maxSize || maxDepth * 2));
-                        const numPaths = Math.max(1, Math.floor(elementSize / penSize));
+                        // Calculate number of concentric paths needed to fill the element
+                        const numPaths = Math.max(1, Math.ceil(elementSize / (penSize * 2)));
 
                         // Determine if this is dots (circles) or squares
                         const isDots = patternType === 'dots';
