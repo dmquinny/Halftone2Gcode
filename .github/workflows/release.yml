@@ -58,7 +58,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Copy and rename the portable executable
-          cp src-tauri/target/release/halftone-converter.exe halftone-converter-windows-portable.exe
+          cp src-tauri/target/release/halftone-converter.exe halftone-converter-portable-windows.exe
 
           # Get the release ID from the tag
           RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -69,8 +69,8 @@ jobs:
           curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @halftone-converter-windows-portable.exe \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-windows-portable.exe"
+            --data-binary @halftone-converter-portable-windows.exe \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-portable-windows.exe"
         shell: bash
 
       - name: Rename and upload portable executable (macOS)
@@ -79,7 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Copy and rename the portable executable
-          cp src-tauri/target/release/halftone-converter halftone-converter-macos-portable
+          cp src-tauri/target/release/halftone-converter halftone-converter-portable-macos
 
           # Get the release ID from the tag
           RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -90,8 +90,8 @@ jobs:
           curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @halftone-converter-macos-portable \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-macos-portable"
+            --data-binary @halftone-converter-portable-macos \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-portable-macos"
 
       - name: Rename and upload portable executable (Linux)
         if: matrix.platform == 'ubuntu-22.04'
@@ -99,7 +99,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Copy and rename the portable executable
-          cp src-tauri/target/release/halftone-converter halftone-converter-linux-portable
+          cp src-tauri/target/release/halftone-converter halftone-converter-portable-linux
 
           # Get the release ID from the tag
           RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -110,5 +110,5 @@ jobs:
           curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @halftone-converter-linux-portable \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-linux-portable"
+            --data-binary @halftone-converter-portable-linux \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=halftone-converter-portable-linux"
