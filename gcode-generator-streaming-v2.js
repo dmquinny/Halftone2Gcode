@@ -9,32 +9,42 @@
  * Generate G-code header lines (without writing to file)
  * Returns array of header lines
  */
-function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero, spindleSpeed, toolChange, vbitToolNumber, boundaryToolNumber, boundaryToolSize, multiPassCount, ramping, rampDistance, boundary, plotterMode, includeLineNumbers) {
+function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero, spindleSpeed, toolChange, vbitToolNumber, boundaryToolNumber, boundaryToolSize, multiPassCount, ramping, rampDistance, boundary, plotterMode, includeLineNumbers, outputUnits = 'mm') {
     const headerLines = [];
     const patternType = halftoneData.patternType || 'lines';
     const elementCount = halftoneData.lines ? halftoneData.lines.length : halftoneData.elements.length;
     const workZeroLabel = workZero.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
 
+    // Unit conversion
+    const isInchMode = outputUnits === 'inch';
+    const unitScale = isInchMode ? 1/25.4 : 1;
+    const unitLabel = isInchMode ? 'inches' : 'mm';
+    const feedScale = unitScale;
+    const precision = isInchMode ? 4 : 2;
+
+    // Helper to format numbers based on units
+    const fmt = (num) => (num * unitScale).toFixed(precision);
+
     // Build header
     headerLines.push(`(Halftone ${patternType.charAt(0).toUpperCase() + patternType.slice(1)} Pattern G-code)`);
     headerLines.push(plotterMode ? '(PLOTTER MODE - Pen Up/Down control)' : '(CUTTING MODE - Z-axis engraving)');
-    headerLines.push(`(Image size: ${halftoneData.width.toFixed(2)}mm x ${halftoneData.height.toFixed(2)}mm)`);
-    if (!plotterMode) headerLines.push(`(Max depth: ${maxDepth}mm)`);
-    headerLines.push(`(Safe Z height: ${safeHeight}mm)`);
+    headerLines.push(`(Image size: ${fmt(halftoneData.width)} x ${fmt(halftoneData.height)} ${unitLabel})`);
+    if (!plotterMode) headerLines.push(`(Max depth: ${fmt(maxDepth)} ${unitLabel})`);
+    headerLines.push(`(Safe Z height: ${fmt(safeHeight)} ${unitLabel})`);
     if (!plotterMode) headerLines.push(`(Spindle speed: ${spindleSpeed} RPM)`);
     if (!plotterMode) headerLines.push(`(V-bit angle: ${vbitAngle}°)`);
     if (toolChange && !plotterMode) headerLines.push(`(V-bit tool: T${vbitToolNumber})`);
-    if (boundary && toolChange) headerLines.push(`(Boundary frame tool: T${boundaryToolNumber}, ${boundaryToolSize}mm diameter)`);
-    headerLines.push(`(Cutting feed rate: ${cuttingFeedRate}mm/min)`);
-    headerLines.push(`(Plunge feed rate: ${plungeFeedRate}mm/min)`);
+    if (boundary && toolChange) headerLines.push(`(Boundary frame tool: T${boundaryToolNumber}, ${fmt(boundaryToolSize)} ${unitLabel} diameter)`);
+    headerLines.push(`(Cutting feed rate: ${Math.round(cuttingFeedRate * feedScale)} ${unitLabel}/min)`);
+    headerLines.push(`(Plunge feed rate: ${Math.round(plungeFeedRate * feedScale)} ${unitLabel}/min)`);
     headerLines.push(`(Work zero position: ${workZeroLabel})`);
     headerLines.push(`(Total elements: ${elementCount})`);
     if (multiPassCount > 1 && !plotterMode) headerLines.push(`(Halftone passes: ${multiPassCount})`);
-    if (ramping && !plotterMode) headerLines.push(`(Z-ramping enabled: ${rampDistance}mm)`);
+    if (ramping && !plotterMode) headerLines.push(`(Z-ramping enabled: ${fmt(rampDistance)} ${unitLabel})`);
     if (boundary) headerLines.push(`(Boundary frame enabled at border edge)`);
     headerLines.push(`(Generated for grblHAL)`);
     headerLines.push('');
-    headerLines.push('G21 (Metric units)');
+    headerLines.push(isInchMode ? 'G20 (Imperial units)' : 'G21 (Metric units)');
     headerLines.push('G90 (Absolute positioning)');
     headerLines.push('G17 (XY plane)');
     headerLines.push('G94 (Feed per minute)');
@@ -51,9 +61,9 @@ function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate
         headerLines.push('G4 P2 (Wait 2 seconds for spindle to reach speed)');
     }
 
-    headerLines.push(`F${cuttingFeedRate} (Set initial feed rate)`);
-    headerLines.push(`G0 Z${safeHeight.toFixed(1)} (Safe height)`);
-    headerLines.push('G0 X0.000 Y0.000 (Move to origin)');
+    headerLines.push(`F${Math.round(cuttingFeedRate * feedScale)} (Set initial feed rate)`);
+    headerLines.push(`G0 Z${fmt(safeHeight)} (Safe height)`);
+    headerLines.push(`G0 X${fmt(0)} Y${fmt(0)} (Move to origin)`);
     headerLines.push('');
 
     return headerLines;
@@ -63,20 +73,32 @@ function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate
  * Generate G-code footer lines (without writing to file)
  * Returns array of footer lines
  */
-function generateGcodeFooter(safeHeight, plotterMode) {
+function generateGcodeFooter(safeHeight, plotterMode, outputUnits = 'mm') {
     const footerLines = [];
+
+    // Unit conversion
+    const isInchMode = outputUnits === 'inch';
+    const unitScale = isInchMode ? 1/25.4 : 1;
+    const precision = isInchMode ? 4 : 2;
+    const fmt = (num) => (num * unitScale).toFixed(precision);
 
     if (!plotterMode) {
         footerLines.push('M5 (Stop spindle)');
     }
-    footerLines.push(`G0 Z${safeHeight.toFixed(1)} (Return to safe height)`);
-    footerLines.push('G0 X0 Y0 (Return to origin)');
+    footerLines.push(`G0 Z${fmt(safeHeight)} (Return to safe height)`);
+    footerLines.push(`G0 X${fmt(0)} Y${fmt(0)} (Return to origin)`);
     footerLines.push('M30 (Program end)');
 
     return footerLines;
 }
 
-async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, streamer) {
+async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, outputUnits = 'mm', streamer) {
+
+    // Unit conversion setup
+    const isInchMode = outputUnits === 'inch';
+    const unitScale = isInchMode ? 1/25.4 : 1;
+    const feedScale = unitScale;
+    const precision = isInchMode ? 4 : 2;
 
     // Time estimation variables
     let totalTime = 0;
@@ -113,6 +135,18 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     // Line numbering
     let lineNumber = 10;
 
+    // Modal state tracking for optimization
+    const modalState = {
+        currentG: null,     // Current G command (G0, G1, G2, G3)
+        currentF: null,     // Current feed rate
+        lastOutputX: null,  // Last X coordinate output
+        lastOutputY: null,  // Last Y coordinate output
+        lastOutputZ: null   // Last Z coordinate output
+    };
+
+    // Format number with unit conversion (0.01mm or 0.0001" precision)
+    const fmt = (num) => (num * unitScale).toFixed(precision);
+
     // Helper to write a line
     const writeLine = async (line) => {
         const finalLine = includeLineNumbers ? `N${lineNumber} ${line}` : line;
@@ -130,6 +164,80 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                 gcodeInfo.textContent = `Writing ${lineCount} lines of G-code to file "${window.currentGcodeFilename}"`;
             }
         }
+    };
+
+    // Optimized movement command builder
+    const buildMove = (gCode, x, y, z, f) => {
+        let cmd = '';
+
+        // Only output G command if it changed
+        if (gCode !== modalState.currentG) {
+            cmd += gCode;
+            modalState.currentG = gCode;
+        }
+
+        // Only output coordinates that changed
+        if (x !== null && x !== undefined && x !== modalState.lastOutputX) {
+            cmd += ` X${fmt(x)}`;
+            modalState.lastOutputX = x;
+        }
+        if (y !== null && y !== undefined && y !== modalState.lastOutputY) {
+            cmd += ` Y${fmt(y)}`;
+            modalState.lastOutputY = y;
+        }
+        if (z !== null && z !== undefined && z !== modalState.lastOutputZ) {
+            cmd += ` Z${fmt(z)}`;
+            modalState.lastOutputZ = z;
+        }
+
+        // Only output feed rate if it changed and is specified (with unit conversion)
+        if (f !== null && f !== undefined && f !== modalState.currentF) {
+            cmd += ` F${Math.round(f * feedScale)}`;
+            modalState.currentF = f;
+        }
+
+        return cmd.trim();
+    };
+
+    // Arc command builder (G2/G3)
+    const buildArc = (gCode, x, y, z, i, j, f) => {
+        let cmd = '';
+
+        // Only output G command if it changed
+        if (gCode !== modalState.currentG) {
+            cmd += gCode;
+            modalState.currentG = gCode;
+        }
+
+        // Output coordinates (always include for arcs)
+        if (x !== null && x !== undefined) {
+            cmd += ` X${fmt(x)}`;
+            modalState.lastOutputX = x;
+        }
+        if (y !== null && y !== undefined) {
+            cmd += ` Y${fmt(y)}`;
+            modalState.lastOutputY = y;
+        }
+        if (z !== null && z !== undefined) {
+            cmd += ` Z${fmt(z)}`;
+            modalState.lastOutputZ = z;
+        }
+
+        // I and J offsets (always required for arcs)
+        if (i !== null && i !== undefined) {
+            cmd += ` I${fmt(i)}`;
+        }
+        if (j !== null && j !== undefined) {
+            cmd += ` J${fmt(j)}`;
+        }
+
+        // Only output feed rate if it changed (with unit conversion)
+        if (f !== null && f !== undefined && f !== modalState.currentF) {
+            cmd += ` F${Math.round(f * feedScale)}`;
+            modalState.currentF = f;
+        }
+
+        return cmd.trim();
     };
 
     // === HEADER ===
@@ -151,7 +259,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
         const lines = halftoneData.lines;
 
         for (let pass = 0; pass < multiPassCount; pass++) {
-            if (multiPassCount > 1) {
+            if (multiPassCount > 1 && !plotterMode) {
                 await writeLine(`(Pass ${pass + 1} of ${multiPassCount})`);
             }
 
@@ -187,12 +295,14 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             lineWidth = actualLineWidth;
 
                             if (i === 0) {
-                                await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
+                                const cmd = buildMove('G0', x, y, null, null);
+                                if (cmd) await writeLine(cmd);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
                                 totalTime += (rapidDist / rapidRate) * 60;
                             } else {
-                                await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${depth.toFixed(3)}`);
+                                const cmd = buildMove('G1', x, y, depth, cuttingFeedRate);
+                                if (cmd) await writeLine(cmd);
                             }
                         } else {
                             // Set Pen Size method: draw multiple passes based on actual line width
@@ -227,22 +337,28 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
                                 if (i === 0 && offsetPass === 0) {
                                     // First point of first pass: rapid move, then pen down
-                                    await writeLine(`G0 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)}`);
-                                    await writeLine(`G1 Z0 F${plungeFeedRate}`);
+                                    const cmd1 = buildMove('G0', offsetX, offsetY, null, null);
+                                    if (cmd1) await writeLine(cmd1);
+                                    const cmd2 = buildMove('G1', null, null, 0, plungeFeedRate);
+                                    if (cmd2) await writeLine(cmd2);
                                     rapidMoveCount++;
                                     const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                     totalTime += (rapidDist / rapidRate) * 60;
                                 } else if (offsetPass > 0 && i === 0) {
                                     // First point of subsequent passes: lift pen, rapid move, lower pen
-                                    await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
-                                    await writeLine(`G0 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)}`);
-                                    await writeLine(`G1 Z0 F${plungeFeedRate}`);
+                                    const cmd1 = buildMove('G0', null, null, safeHeight, null);
+                                    if (cmd1) await writeLine(cmd1);
+                                    const cmd2 = buildMove('G0', offsetX, offsetY, null, null);
+                                    if (cmd2) await writeLine(cmd2);
+                                    const cmd3 = buildMove('G1', null, null, 0, plungeFeedRate);
+                                    if (cmd3) await writeLine(cmd3);
                                     rapidMoveCount++;
                                     const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                     totalTime += (rapidDist / rapidRate) * 60;
                                 } else {
                                     // Drawing move with Z at paper level
-                                    await writeLine(`G1 X${offsetX.toFixed(3)} Y${offsetY.toFixed(3)} Z0 F${cuttingFeedRate}`);
+                                    const cmd = buildMove('G1', offsetX, offsetY, 0, cuttingFeedRate);
+                                    if (cmd) await writeLine(cmd);
                                     const drawDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                     totalCuttingDistance += drawDist;
                                     totalTime += (drawDist / cuttingFeedRate) * 60;
@@ -260,7 +376,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
                         if (depth > minDepth) {
                             if (i === 0) {
-                                await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
+                                const cmd1 = buildMove('G0', x, y, null, null);
+                                if (cmd1) await writeLine(cmd1);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
                                 totalTime += (rapidDist / rapidRate) * 60;
@@ -275,8 +392,10 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                         const ratio = rampDistance / distance;
                                         const rampX = x + (nextX - x) * ratio;
                                         const rampY = y + (nextY - y) * ratio;
-                                        await writeLine(`G1 X${rampX.toFixed(3)} Y${rampY.toFixed(3)} Z${(-depth).toFixed(3)} F${plungeFeedRate}`);
-                                        await writeLine(`G1 X${nextX.toFixed(3)} Y${nextY.toFixed(3)} F${cuttingFeedRate}`);
+                                        const cmd2 = buildMove('G1', rampX, rampY, -depth, plungeFeedRate);
+                                        if (cmd2) await writeLine(cmd2);
+                                        const cmd3 = buildMove('G1', nextX, nextY, null, cuttingFeedRate);
+                                        if (cmd3) await writeLine(cmd3);
                                         i++;
                                         const dist = Math.sqrt((nextX - x) ** 2 + (nextY - y) ** 2);
                                         totalCuttingDistance += dist;
@@ -287,12 +406,14 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                     }
                                 }
 
-                                await writeLine(`G1 Z${(-depth).toFixed(3)} F${plungeFeedRate}`);
+                                const cmd2 = buildMove('G1', null, null, -depth, plungeFeedRate);
+                                if (cmd2) await writeLine(cmd2);
                                 lastZ = -depth;
                                 totalTime += (depth / plungeFeedRate) * 60;
                             } else {
                                 // Include Z for variable depth engraving along the line
-                                await writeLine(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${(-depth).toFixed(3)} F${cuttingFeedRate}`);
+                                const cmd = buildMove('G1', x, y, -depth, cuttingFeedRate);
+                                if (cmd) await writeLine(cmd);
                                 const dist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2 + ((-depth) - lastZ) ** 2);
                                 totalCuttingDistance += dist;
                                 totalTime += (dist / cuttingFeedRate) * 60;
@@ -307,12 +428,14 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
                 // Retract at end of line
                 if (!plotterMode) {
-                    await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
+                    const cmd = buildMove('G0', null, null, safeHeight, null);
+                    if (cmd) await writeLine(cmd);
                     lastZ = safeHeight;
                     totalTime += ((safeHeight + Math.abs(lastZ)) / rapidRate) * 60;
                 } else if (plotterMode && plotterLineWidthMethod === 'setPenSize') {
                     // Lift pen for Set Pen Size method
-                    await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
+                    const cmd = buildMove('G0', null, null, safeHeight, null);
+                    if (cmd) await writeLine(cmd);
                 }
             }
         }
@@ -322,7 +445,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
         const elements = halftoneData.elements;
 
         for (let pass = 0; pass < multiPassCount; pass++) {
-            if (multiPassCount > 1) {
+            if (multiPassCount > 1 && !plotterMode) {
                 await writeLine(`(Pass ${pass + 1} of ${multiPassCount})`);
             }
 
@@ -347,11 +470,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         const clampedRatio = Math.max(0, Math.min(1, widthRatio));
                         depth = plotterPressureMin + (clampedRatio * pressureRange);
 
-                        await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
+                        const cmd1 = buildMove('G0', x, y, null, null);
+                        if (cmd1) await writeLine(cmd1);
                         rapidMoveCount++;
                         const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
                         totalTime += (rapidDist / rapidRate) * 60;
-                        await writeLine(`G1 Z${depth.toFixed(3)}`);
+                        const cmd2 = buildMove('G1', null, null, depth, plungeFeedRate);
+                        if (cmd2) await writeLine(cmd2);
                         lastX = x;
                         lastY = y;
                     } else {
@@ -369,33 +494,41 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             if (radius < penSize / 2) break; // Stop when radius gets too small
 
                             if (isDots) {
-                                // Generate concentric circle
-                                const segments = Math.max(16, Math.floor(radius * 4)); // More segments for larger circles
-                                for (let seg = 0; seg <= segments; seg++) {
-                                    const angle = (seg / segments) * Math.PI * 2;
-                                    const circleX = x + Math.cos(angle) * radius;
-                                    const circleY = y + Math.sin(angle) * radius;
+                                // Generate concentric circle using G02 arc command
+                                // Start point: right side of circle (x + radius, y)
+                                const startX = x + radius;
+                                const startY = y;
 
-                                    if (seg === 0) {
-                                        if (pathIndex > 0) {
-                                            // Lift pen between paths
-                                            await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
-                                        }
-                                        await writeLine(`G0 X${circleX.toFixed(3)} Y${circleY.toFixed(3)}`);
-                                        await writeLine(`G1 Z0 F${plungeFeedRate}`);
-                                        rapidMoveCount++;
-                                        const rapidDist = Math.sqrt((circleX - lastX) ** 2 + (circleY - lastY) ** 2);
-                                        totalTime += (rapidDist / rapidRate) * 60;
-                                    } else {
-                                        await writeLine(`G1 X${circleX.toFixed(3)} Y${circleY.toFixed(3)} Z0 F${cuttingFeedRate}`);
-                                        const drawDist = Math.sqrt((circleX - lastX) ** 2 + (circleY - lastY) ** 2);
-                                        totalCuttingDistance += drawDist;
-                                        totalTime += (drawDist / cuttingFeedRate) * 60;
-                                    }
-
-                                    lastX = circleX;
-                                    lastY = circleY;
+                                if (pathIndex > 0) {
+                                    // Lift pen between paths
+                                    const cmd1 = buildMove('G0', null, null, safeHeight, null);
+                                    if (cmd1) await writeLine(cmd1);
                                 }
+
+                                // Rapid move to start point
+                                const cmd2 = buildMove('G0', startX, startY, null, null);
+                                if (cmd2) await writeLine(cmd2);
+                                rapidMoveCount++;
+                                const rapidDist = Math.sqrt((startX - lastX) ** 2 + (startY - lastY) ** 2);
+                                totalTime += (rapidDist / rapidRate) * 60;
+
+                                // Lower pen
+                                const cmd3 = buildMove('G1', null, null, 0, plungeFeedRate);
+                                if (cmd3) await writeLine(cmd3);
+
+                                // Draw full circle using G02 (clockwise arc)
+                                // I and J are offsets from start point to center
+                                // From (x + radius, y) to center (x, y): I = -radius, J = 0
+                                const cmd4 = buildArc('G02', startX, startY, null, -radius, 0, cuttingFeedRate);
+                                if (cmd4) await writeLine(cmd4);
+
+                                // Calculate circle circumference for time estimation
+                                const circumference = 2 * Math.PI * radius;
+                                totalCuttingDistance += circumference;
+                                totalTime += (circumference / cuttingFeedRate) * 60;
+
+                                lastX = startX;
+                                lastY = startY;
                             } else {
                                 // Generate concentric square
                                 const halfSize = radius;
@@ -412,15 +545,19 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                     if (cornerIndex === 0) {
                                         if (pathIndex > 0) {
                                             // Lift pen between paths
-                                            await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
+                                            const cmd1 = buildMove('G0', null, null, safeHeight, null);
+                                            if (cmd1) await writeLine(cmd1);
                                         }
-                                        await writeLine(`G0 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)}`);
-                                        await writeLine(`G1 Z0 F${plungeFeedRate}`);
+                                        const cmd2 = buildMove('G0', corner.x, corner.y, null, null);
+                                        if (cmd2) await writeLine(cmd2);
+                                        const cmd3 = buildMove('G1', null, null, 0, plungeFeedRate);
+                                        if (cmd3) await writeLine(cmd3);
                                         rapidMoveCount++;
                                         const rapidDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
                                         totalTime += (rapidDist / rapidRate) * 60;
                                     } else {
-                                        await writeLine(`G1 X${corner.x.toFixed(3)} Y${corner.y.toFixed(3)} Z0 F${cuttingFeedRate}`);
+                                        const cmd = buildMove('G1', corner.x, corner.y, 0, cuttingFeedRate);
+                                        if (cmd) await writeLine(cmd);
                                         const drawDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
                                         totalCuttingDistance += drawDist;
                                         totalTime += (drawDist / cuttingFeedRate) * 60;
@@ -432,23 +569,65 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             }
                         }
                         // Lift pen after completing all paths for this element
-                        await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
+                        const cmd = buildMove('G0', null, null, safeHeight, null);
+                        if (cmd) await writeLine(cmd);
                     }
                 } else {
+                    // Cutting mode - V-bit engraving
                     const targetWidth = element.size;
                     const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                     depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
 
                     if (depth > minDepth) {
-                        await writeLine(`G0 X${x.toFixed(3)} Y${y.toFixed(3)}`);
-                        rapidMoveCount++;
-                        const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                        totalTime += (rapidDist / rapidRate) * 60;
-                        await writeLine(`G1 Z${(-depth).toFixed(3)} F${plungeFeedRate}`);
-                        await writeLine(`G0 Z${safeHeight.toFixed(1)}`);
-                        totalTime += ((depth / plungeFeedRate) + ((safeHeight + depth) / rapidRate)) * 60;
-                        lastX = x;
-                        lastY = y;
+                        // For dots pattern, engrave a circular pocket
+                        if (patternType === 'dots') {
+                            // Calculate radius at the surface for the target width
+                            const surfaceRadius = targetWidth / 2;
+
+                            // Move to start point (right side of circle)
+                            const startX = x + surfaceRadius;
+                            const startY = y;
+
+                            const cmd1 = buildMove('G0', startX, startY, null, null);
+                            if (cmd1) await writeLine(cmd1);
+                            rapidMoveCount++;
+                            const rapidDist = Math.sqrt((startX - lastX) ** 2 + (startY - lastY) ** 2);
+                            totalTime += (rapidDist / rapidRate) * 60;
+
+                            // Plunge to depth
+                            const cmd2 = buildMove('G1', null, null, -depth, plungeFeedRate);
+                            if (cmd2) await writeLine(cmd2);
+
+                            // Cut circular pocket using G02 (clockwise arc)
+                            const cmd3 = buildArc('G02', startX, startY, null, -surfaceRadius, 0, cuttingFeedRate);
+                            if (cmd3) await writeLine(cmd3);
+
+                            const circumference = 2 * Math.PI * surfaceRadius;
+                            totalCuttingDistance += circumference;
+                            totalTime += (depth / plungeFeedRate) * 60 + (circumference / cuttingFeedRate) * 60;
+
+                            // Retract
+                            const cmd4 = buildMove('G0', null, null, safeHeight, null);
+                            if (cmd4) await writeLine(cmd4);
+                            totalTime += ((safeHeight + depth) / rapidRate) * 60;
+
+                            lastX = startX;
+                            lastY = startY;
+                        } else {
+                            // For squares/other patterns, just plunge at center
+                            const cmd1 = buildMove('G0', x, y, null, null);
+                            if (cmd1) await writeLine(cmd1);
+                            rapidMoveCount++;
+                            const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                            totalTime += (rapidDist / rapidRate) * 60;
+                            const cmd2 = buildMove('G1', null, null, -depth, plungeFeedRate);
+                            if (cmd2) await writeLine(cmd2);
+                            const cmd3 = buildMove('G0', null, null, safeHeight, null);
+                            if (cmd3) await writeLine(cmd3);
+                            totalTime += ((depth / plungeFeedRate) + ((safeHeight + depth) / rapidRate)) * 60;
+                            lastX = x;
+                            lastY = y;
+                        }
                     }
                 }
             }

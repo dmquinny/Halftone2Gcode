@@ -58,6 +58,7 @@ const centerOffsetYInput = document.getElementById('centerOffsetY');
 const offsetOddLinesToggle = document.getElementById('offsetOddLinesToggle');
 const darkBoostToggle = document.getElementById('darkBoostToggle');
 const fixedSizesToggle = document.getElementById('fixedSizesToggle');
+const outputUnitsSelect = document.getElementById('outputUnits');
 const vbitAngleSelect = document.getElementById('vbitAngle');
 const livePreviewToggle = document.getElementById('livePreviewToggle');
 const workZeroSelect = document.getElementById('workZeroPosition');
@@ -4798,15 +4799,13 @@ plotterModeToggle.addEventListener('change', () => {
     // CNC settings that are only for cutting
     const cuttingOnlyGroups = [
         document.getElementById('maxDepth-group'),
-        document.getElementById('safeHeight-group'),
         document.getElementById('spindleSpeed-group'),
         document.getElementById('vbitAngle-group'),
         document.getElementById('materialThickness-group'),
         document.getElementById('borderCuttingFeedRate-group'),
-        document.getElementById('plungeFeedRate-group'),
         document.getElementById('ramping-group'),
         document.getElementById('rampDistance-group'),
-        document.getElementById('multiPassCount-group'),
+        document.getElementById('multiPass-group'),
         document.getElementById('toolChange-group'),
         document.getElementById('vbitToolNumber-group'),
         document.getElementById('boundary-group'),

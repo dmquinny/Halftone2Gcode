@@ -93,6 +93,7 @@ async function generateGcodeWithStreaming() {
         const boundaryToolSize = parseFloat(boundaryToolSizeInput.value);
         const materialThickness = parseFloat(materialThicknessInput.value);
         const boundaryPassDepth = parseFloat(boundaryPassDepthInput.value);
+        const plotterMode = plotterModeToggle.checked;
         // Multi-pass only applies to cutting mode, not plotter mode
         const multiPassCount = plotterMode ? 1 : parseInt(multiPassCountInput.value);
         const ramping = rampingToggle.checked;
@@ -103,7 +104,6 @@ async function generateGcodeWithStreaming() {
         const optimizeToolpathEnabled = optimizeToolpathToggle.checked;
         const bidirectional = bidirectionalToggle.checked;
         const borderCuttingFeedRate = parseFloat(borderCuttingFeedRateInput.value) || cuttingFeedRate;
-        const plotterMode = plotterModeToggle.checked;
         const plotterLineWidthMethodValue = document.getElementById('plotterLineWidthMethod')?.value || 'pressure';
         const plotterPressureMin = parseFloat(plotterPressureMinInput?.value || 0);
         const plotterPressureMax = parseFloat(plotterPressureMaxInput?.value || -0.5);
@@ -115,6 +115,9 @@ async function generateGcodeWithStreaming() {
         // Get file splitting parameters
         const splitFiles = splitFilesToggle?.checked || false;
         const maxLinesPerFile = splitFiles ? parseInt(maxLinesPerFileInput?.value || 50000) : 0;
+
+        // Get output units
+        const outputUnits = outputUnitsSelect?.value || 'mm';
 
         // Generate header and footer arrays for file splitting
         const headerLines = generateGcodeHeader(
@@ -135,10 +138,11 @@ async function generateGcodeWithStreaming() {
             rampDistance,
             boundary,
             plotterMode,
-            includeLineNumbers
+            includeLineNumbers,
+            outputUnits
         );
 
-        const footerLines = generateGcodeFooter(safeHeight, plotterMode);
+        const footerLines = generateGcodeFooter(safeHeight, plotterMode, outputUnits);
 
         // Create streamer with splitting support
         const streamer = new GcodeStreamer();
@@ -177,6 +181,7 @@ async function generateGcodeWithStreaming() {
             plotterPenSize,
             plotterLineWidthLight,
             plotterLineWidthHeavy,
+            outputUnits,
             streamer  // Pass streamer as last parameter
         );
 
