@@ -4863,6 +4863,7 @@ if (plotterLineWidthHeavyInput) {
 }
 
 function updatePlotterMethodOptions() {
+    const isPlotterMode = plotterModeToggle?.checked || false;
     const method = plotterLineWidthMethod?.value || 'pressure';
     const isPressure = method === 'pressure';
     const isSetPenSize = method === 'setPenSize';
@@ -4877,12 +4878,13 @@ function updatePlotterMethodOptions() {
 
     const penSizeGroup = document.getElementById('plotterPenSize-group');
 
+    // Only show plotter controls if plotter mode is enabled
     pressureGroups.forEach(group => {
-        if (group) group.style.display = isPressure ? 'flex' : 'none';
+        if (group) group.style.display = (isPlotterMode && isPressure) ? 'flex' : 'none';
     });
 
     if (penSizeGroup) {
-        penSizeGroup.style.display = isSetPenSize ? 'flex' : 'none';
+        penSizeGroup.style.display = (isPlotterMode && isSetPenSize) ? 'flex' : 'none';
     }
 }
 

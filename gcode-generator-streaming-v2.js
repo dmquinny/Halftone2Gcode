@@ -266,9 +266,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
             for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
                 const line = lines[lineIndex];
 
+                // Determine if we should reverse this line for bidirectional engraving
+                const shouldReverse = bidirectional && (lineIndex % 2 === 1);
+                const processedLine = shouldReverse ? [...line].reverse() : line;
+
                 // Process each point in the line
-                for (let i = 0; i < line.length; i++) {
-                    const point = line[i];
+                for (let i = 0; i < processedLine.length; i++) {
+                    const point = processedLine[i];
                     const x = (point.x * pixelsToMM) + xOffset;
                     // Flip Y coordinate: image Y increases down, CNC Y increases up
                     const y = (halftoneData.height - (point.y * pixelsToMM)) + yOffset;
@@ -370,7 +374,12 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         }
                     } else {
                         // Cutting mode
-                        const targetWidth = point.depth * maxDepth * 2;
+                        // Get the target line width from halftone data
+                        const targetWidth = point.width !== undefined ? point.width :
+                            (point.depth * (halftoneData.maxSize || 2));
+
+                        // Calculate depth needed to achieve this width with the V-bit
+                        // Formula: width = 2 * depth * tan(halfAngle), so depth = width / (2 * tan(halfAngle))
                         const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                         depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
 
