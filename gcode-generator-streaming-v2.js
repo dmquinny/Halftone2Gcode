@@ -51,12 +51,12 @@ function generateGcodeHeader(halftoneData, maxDepth, safeHeight, cuttingFeedRate
     headerLines.push('G54 (Work coordinate system)');
     headerLines.push('');
 
-    if (toolChange) {
-        headerLines.push(`T${vbitToolNumber} M6 (Load V-bit tool)`);
-        headerLines.push('G43 H1 (Tool length offset)');
-    }
-
     if (!plotterMode) {
+        if (toolChange) {
+            headerLines.push(`T${vbitToolNumber} M6 (Load V-bit tool)`);
+            headerLines.push('G43 H1 (Tool length offset)');
+        }
+
         headerLines.push(`M3 S${spindleSpeed} (Start spindle)`);
         headerLines.push('G4 P2 (Wait 2 seconds for spindle to reach speed)');
     }
@@ -432,10 +432,12 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                     if (cmd) await writeLine(cmd);
                     lastZ = safeHeight;
                     totalTime += ((safeHeight + Math.abs(lastZ)) / rapidRate) * 60;
-                } else if (plotterMode && plotterLineWidthMethod === 'setPenSize') {
-                    // Lift pen for Set Pen Size method
-                    const cmd = buildMove('G0', null, null, safeHeight, null);
+                } else if (plotterMode) {
+                    // Lift pen to avoid dragging between lines (2mm lift)
+                    const cmd = buildMove('G0', null, null, 2, null);
                     if (cmd) await writeLine(cmd);
+                    lastZ = 2;
+                    totalTime += (2 / rapidRate) * 60;
                 }
             }
         }
