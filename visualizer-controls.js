@@ -10,44 +10,83 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add load button handler
     const loadVisualizerButton = document.getElementById('loadVisualizerButton');
     if (loadVisualizerButton) {
-        loadVisualizerButton.addEventListener('click', function() {
+        loadVisualizerButton.addEventListener('click', async function() {
             if (!visualizerLoaded) {
-                loadVisualizerButton.textContent = '⏳ Loading...';
-                loadVisualizerButton.disabled = true;
+                // Show loading state
+                const vizLoadPrompt = document.getElementById('vizLoadPrompt');
+                vizLoadPrompt.innerHTML = `
+                    <div style="text-align: center; color: #999;">
+                        <div style="margin-bottom: 20px;">
+                            <div style="border: 4px solid #444; border-top: 4px solid #5B9BD5; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                            <style>
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                            </style>
+                        </div>
+                        <h3 style="margin: 15px 0 5px 0; font-size: 1.2em; color: #ccc;">Loading 3D Visualizer...</h3>
+                        <p style="margin: 0; font-size: 0.9em;">Initializing Three.js scene</p>
+                    </div>
+                `;
 
-                // Initialize visualizer
-                setTimeout(() => {
-                    if (typeof initGCodeVisualizer === 'function') {
-                        console.log('🎬 Initializing visualizer on demand...');
-                        initGCodeVisualizer();
-                        visualizerLoaded = true;
+                // Initialize visualizer with a small delay to allow UI to update
+                await new Promise(resolve => setTimeout(resolve, 50));
 
-                        // Hide load prompt, show controls
-                        document.getElementById('vizLoadPrompt').style.display = 'none';
-                        document.getElementById('vizControls').style.display = 'block';
+                if (typeof initGCodeVisualizer === 'function') {
+                    console.log('🎬 Initializing visualizer on demand...');
+                    initGCodeVisualizer();
+                    visualizerLoaded = true;
 
-                        // If there's pending G-code data, load it now
-                        if (pendingGCodeData) {
-                            console.log('📊 Loading pending G-code data into visualizer...');
-                            if (pendingGCodeData.filePath) {
-                                window.gcodeVisualizer.loadGCodeFromFile(
-                                    pendingGCodeData.filePath,
-                                    pendingGCodeData.imageWidth,
-                                    pendingGCodeData.imageHeight,
-                                    pendingGCodeData.materialThickness
-                                );
-                            } else if (pendingGCodeData.gcodeText) {
-                                window.gcodeVisualizer.loadGCode(
-                                    pendingGCodeData.gcodeText,
-                                    pendingGCodeData.imageWidth,
-                                    pendingGCodeData.imageHeight,
-                                    pendingGCodeData.materialThickness
-                                );
-                            }
-                            pendingGCodeData = null;
+                    // Wait a bit for Three.js to initialize
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // Hide load prompt, show controls
+                    vizLoadPrompt.style.display = 'none';
+                    document.getElementById('vizControls').style.display = 'block';
+
+                    // If there's pending G-code data, load it now
+                    if (pendingGCodeData) {
+                        // Update loading message
+                        const vizContainer = document.getElementById('gcodeVisualizerContainer');
+                        vizContainer.innerHTML = `
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">
+                                <div style="text-align: center;">
+                                    <div style="border: 3px solid #444; border-top: 3px solid #5B9BD5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px auto;"></div>
+                                    <p>Loading G-code into visualizer...</p>
+                                </div>
+                            </div>
+                        `;
+
+                        console.log('📊 Loading pending G-code data into visualizer...');
+
+                        // Load the G-code
+                        if (pendingGCodeData.filePath) {
+                            await window.gcodeVisualizer.loadGCodeFromFile(
+                                pendingGCodeData.filePath,
+                                pendingGCodeData.imageWidth,
+                                pendingGCodeData.imageHeight,
+                                pendingGCodeData.materialThickness
+                            );
+                        } else if (pendingGCodeData.gcodeText) {
+                            await window.gcodeVisualizer.loadGCode(
+                                pendingGCodeData.gcodeText,
+                                pendingGCodeData.imageWidth,
+                                pendingGCodeData.imageHeight,
+                                pendingGCodeData.materialThickness
+                            );
+                        }
+
+                        // Clear the loading message (Three.js renderer will replace it)
+                        vizContainer.innerHTML = '';
+                        pendingGCodeData = null;
+
+                        // Trigger a resize to ensure proper rendering
+                        if (window.gcodeVisualizer && window.gcodeVisualizer.onWindowResize) {
+                            setTimeout(() => window.gcodeVisualizer.onWindowResize(), 100);
                         }
                     }
-                }, 100);
+                }
             }
         });
     }
