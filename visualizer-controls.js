@@ -40,12 +40,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Wait a bit for Three.js to initialize
                     await new Promise(resolve => setTimeout(resolve, 100));
 
-                    // Hide load prompt, show controls
-                    vizLoadPrompt.style.display = 'none';
-                    document.getElementById('vizControls').style.display = 'block';
-
-                    // If there's pending G-code data, load it now
+                    // If there's pending G-code data, show processing message
                     if (pendingGCodeData) {
+                        // Update loading message for G-code processing
+                        vizLoadPrompt.innerHTML = `
+                            <div style="text-align: center; color: #999;">
+                                <div style="margin-bottom: 20px;">
+                                    <div style="border: 4px solid #444; border-top: 4px solid #5B9BD5; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                                    <style>
+                                        @keyframes spin {
+                                            0% { transform: rotate(0deg); }
+                                            100% { transform: rotate(360deg); }
+                                        }
+                                    </style>
+                                </div>
+                                <h3 style="margin: 15px 0 5px 0; font-size: 1.2em; color: #ccc;">Processing G-code...</h3>
+                                <p style="margin: 0; font-size: 0.9em;">Parsing and rendering toolpath</p>
+                            </div>
+                        `;
+
                         // Load the G-code (Three.js canvas is already in the container)
                         if (pendingGCodeData.filePath) {
                             await window.gcodeVisualizer.loadGCodeFromFile(
@@ -70,6 +83,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             setTimeout(() => window.gcodeVisualizer.onWindowResize(), 100);
                         }
                     }
+
+                    // Hide load prompt, show controls (after G-code is loaded)
+                    vizLoadPrompt.style.display = 'none';
+                    document.getElementById('vizControls').style.display = 'block';
                 }
             }
         });
