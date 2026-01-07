@@ -25,6 +25,13 @@ desktop.ini
 # Build outputs
 dist/
 *.log
+halftone-converter@*/
+node
+npm
+tauri
+
+# External projects
+ncSender-main/
 
 # Temporary and backup files
 *.backup
