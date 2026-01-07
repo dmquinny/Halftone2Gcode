@@ -47,20 +47,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // If there's pending G-code data, load it now
                     if (pendingGCodeData) {
-                        // Update loading message
-                        const vizContainer = document.getElementById('gcodeVisualizerContainer');
-                        vizContainer.innerHTML = `
-                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">
-                                <div style="text-align: center;">
-                                    <div style="border: 3px solid #444; border-top: 3px solid #5B9BD5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px auto;"></div>
-                                    <p>Loading G-code into visualizer...</p>
-                                </div>
-                            </div>
-                        `;
-
                         console.log('📊 Loading pending G-code data into visualizer...');
 
-                        // Load the G-code
+                        // Load the G-code (Three.js canvas is already in the container)
                         if (pendingGCodeData.filePath) {
                             await window.gcodeVisualizer.loadGCodeFromFile(
                                 pendingGCodeData.filePath,
@@ -77,8 +66,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             );
                         }
 
-                        // Clear the loading message (Three.js renderer will replace it)
-                        vizContainer.innerHTML = '';
                         pendingGCodeData = null;
 
                         // Trigger a resize to ensure proper rendering
