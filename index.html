@@ -1097,7 +1097,6 @@
 
                     // Add visual indicator
                     generateBtn.title = '🚀 Streaming Mode Active - Low Memory Usage';
-                    console.log('✅ Streaming enabled for Tauri - Memory usage will stay low');
 
                     // Add indicator to UI
                     const gcodeInfo = document.getElementById('gcodeInfo');
@@ -1109,10 +1108,6 @@
                         indicator.style.marginLeft = '10px';
                         gcodeInfo.appendChild(indicator);
                     }
-                } else {
-                    console.log('⚠️ Streaming NOT available - using standard mode');
-                    console.log('window.__TAURI__:', typeof window.__TAURI__);
-                    console.log('generateGcodeWithStreaming:', typeof window.generateGcodeWithStreaming);
                 }
             }, 500);
         });
