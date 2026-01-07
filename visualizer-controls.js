@@ -1,13 +1,56 @@
 // G-code Visualizer Controls
 // Wire up UI controls to the visualizer
 
+let visualizerLoaded = false;
+let pendingGCodeData = null; // Store G-code data if user loads it before initializing visualizer
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize visualizer when page loads
-    setTimeout(() => {
-        if (typeof initGCodeVisualizer === 'function') {
-            initGCodeVisualizer();
-        }
-    }, 500);
+    // Don't auto-initialize - wait for user to click load button
+
+    // Add load button handler
+    const loadVisualizerButton = document.getElementById('loadVisualizerButton');
+    if (loadVisualizerButton) {
+        loadVisualizerButton.addEventListener('click', function() {
+            if (!visualizerLoaded) {
+                loadVisualizerButton.textContent = '⏳ Loading...';
+                loadVisualizerButton.disabled = true;
+
+                // Initialize visualizer
+                setTimeout(() => {
+                    if (typeof initGCodeVisualizer === 'function') {
+                        console.log('🎬 Initializing visualizer on demand...');
+                        initGCodeVisualizer();
+                        visualizerLoaded = true;
+
+                        // Hide load prompt, show controls
+                        document.getElementById('vizLoadPrompt').style.display = 'none';
+                        document.getElementById('vizControls').style.display = 'block';
+
+                        // If there's pending G-code data, load it now
+                        if (pendingGCodeData) {
+                            console.log('📊 Loading pending G-code data into visualizer...');
+                            if (pendingGCodeData.filePath) {
+                                window.gcodeVisualizer.loadGCodeFromFile(
+                                    pendingGCodeData.filePath,
+                                    pendingGCodeData.imageWidth,
+                                    pendingGCodeData.imageHeight,
+                                    pendingGCodeData.materialThickness
+                                );
+                            } else if (pendingGCodeData.gcodeText) {
+                                window.gcodeVisualizer.loadGCode(
+                                    pendingGCodeData.gcodeText,
+                                    pendingGCodeData.imageWidth,
+                                    pendingGCodeData.imageHeight,
+                                    pendingGCodeData.materialThickness
+                                );
+                            }
+                            pendingGCodeData = null;
+                        }
+                    }
+                }, 100);
+            }
+        });
+    }
 
     // Tab switching
     const gcodeTextTab = document.getElementById('gcodeTextTab');
@@ -167,21 +210,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Function to load G-code into visualizer
 function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
-    if (window.gcodeVisualizer) {
+    // Get image dimensions and material thickness from the UI
+    const widthInput = document.getElementById('imageWidth');
+    const heightInput = document.getElementById('imageHeight');
+    const thicknessInput = document.getElementById('materialThickness');
+
+    const imageWidth = widthInput ? parseFloat(widthInput.value) : null;
+    const imageHeight = heightInput ? parseFloat(heightInput.value) : null;
+    const materialThickness = thicknessInput ? parseFloat(thicknessInput.value) : null;
+
+    if (imageWidth && imageHeight) {
+        console.log(`📐 Dimensions: ${imageWidth}mm x ${imageHeight}mm, thickness: ${materialThickness}mm`);
+    }
+
+    // Check if visualizer is loaded
+    if (window.gcodeVisualizer && visualizerLoaded) {
         console.log('📊 Loading G-code into visualizer...');
-
-        // Get image dimensions and material thickness from the UI
-        const widthInput = document.getElementById('imageWidth');
-        const heightInput = document.getElementById('imageHeight');
-        const thicknessInput = document.getElementById('materialThickness');
-
-        const imageWidth = widthInput ? parseFloat(widthInput.value) : null;
-        const imageHeight = heightInput ? parseFloat(heightInput.value) : null;
-        const materialThickness = thicknessInput ? parseFloat(thicknessInput.value) : null;
-
-        if (imageWidth && imageHeight) {
-            console.log(`📐 Passing dimensions to visualizer: ${imageWidth}mm x ${imageHeight}mm, thickness: ${materialThickness}mm`);
-        }
 
         // Use file path if provided (streaming mode), otherwise use text content
         if (filePath) {
@@ -191,6 +235,16 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
             console.log('💾 Loading G-code from text content (RAM mode)');
             window.gcodeVisualizer.loadGCode(gcodeText, imageWidth, imageHeight, materialThickness);
         }
+    } else {
+        // Visualizer not loaded yet - store data for later
+        console.log('⏳ Visualizer not loaded yet - storing G-code data for when user loads it');
+        pendingGCodeData = {
+            gcodeText: gcodeText,
+            filePath: filePath,
+            imageWidth: imageWidth,
+            imageHeight: imageHeight,
+            materialThickness: materialThickness
+        };
     }
 }
 

@@ -866,34 +866,52 @@
 
                             <!-- Tab Content: 3D Visualizer -->
                             <div id="visualizerContent" class="tab-content" style="display: none;">
-                                <div style="display: flex; gap: 10px; margin-bottom: 10px; padding: 10px; background: #2d2d2d; border-radius: 4px;">
-                                    <button id="vizPlayButton" style="flex: 0 0 100px; padding: 8px; background: #4CAF50; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">▶ Play</button>
-                                    <button id="vizPauseButton" style="flex: 0 0 100px; padding: 8px; background: #ff9800; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏸ Pause</button>
-                                    <button id="vizResetButton" style="flex: 0 0 100px; padding: 8px; background: #2196F3; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏮ Reset</button>
-                                    <button id="vizToggleBlockButton" style="flex: 0 0 140px; padding: 8px; background: #9C27B0; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">🧱 Hide Block</button>
-                                    <div style="flex: 1;"></div>
-                                    <label style="display: flex; align-items: center; gap: 8px; color: white;">
-                                        Speed:
-                                        <input type="range" id="vizSpeedSlider" min="0.1" max="5" step="0.1" value="1" style="width: 120px;">
-                                        <span id="vizSpeedDisplay" style="min-width: 40px; font-weight: bold;">1.0x</span>
-                                    </label>
-                                </div>
-                                <!-- Camera Controls Row -->
-                                <div style="display: flex; gap: 10px; margin-bottom: 10px; padding: 10px; background: #2d2d2d; border-radius: 4px; flex-wrap: wrap;">
-                                    <div style="display: flex; gap: 5px; align-items: center;">
-                                        <span style="color: #999; font-size: 0.9em; margin-right: 5px;">View:</span>
-                                        <button id="vizCameraTopButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Top</button>
-                                        <button id="vizCameraFrontButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Front</button>
-                                        <button id="vizCameraSideButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Side</button>
-                                        <button id="vizCameraIsoButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Isometric</button>
+                                <!-- Load Visualizer Prompt (shown initially) -->
+                                <div id="vizLoadPrompt" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 600px; background: #1a1a1a; border: 1px solid #444; border-radius: 4px;">
+                                    <div style="text-align: center; color: #999; margin-bottom: 20px;">
+                                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.5;">
+                                            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                            <path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                                        </svg>
+                                        <h3 style="margin: 15px 0 5px 0; font-size: 1.2em; color: #ccc;">3D G-code Visualizer</h3>
+                                        <p style="margin: 0; font-size: 0.9em;">Click below to load the 3D visualization</p>
                                     </div>
-                                    <div style="display: flex; gap: 5px; align-items: center;">
-                                        <span style="color: #999; font-size: 0.9em; margin-right: 5px;">Zoom:</span>
-                                        <button id="vizZoomInButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">+</button>
-                                        <button id="vizZoomOutButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">−</button>
-                                    </div>
+                                    <button id="loadVisualizerButton" style="padding: 12px 30px; background: #5B9BD5; border: none; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: background 0.2s;">
+                                        🎬 Load 3D Visualizer
+                                    </button>
                                 </div>
-                                <div id="gcodeVisualizerContainer" style="width: 100%; height: 550px; border: 1px solid #444; border-radius: 4px; background: #1a1a1a;"></div>
+
+                                <!-- Visualizer Controls (hidden initially) -->
+                                <div id="vizControls" style="display: none;">
+                                    <div style="display: flex; gap: 10px; margin-bottom: 10px; padding: 10px; background: #2d2d2d; border-radius: 4px;">
+                                        <button id="vizPlayButton" style="flex: 0 0 100px; padding: 8px; background: #4CAF50; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">▶ Play</button>
+                                        <button id="vizPauseButton" style="flex: 0 0 100px; padding: 8px; background: #ff9800; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏸ Pause</button>
+                                        <button id="vizResetButton" style="flex: 0 0 100px; padding: 8px; background: #2196F3; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏮ Reset</button>
+                                        <button id="vizToggleBlockButton" style="flex: 0 0 140px; padding: 8px; background: #9C27B0; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">🧱 Hide Block</button>
+                                        <div style="flex: 1;"></div>
+                                        <label style="display: flex; align-items: center; gap: 8px; color: white;">
+                                            Speed:
+                                            <input type="range" id="vizSpeedSlider" min="0.1" max="5" step="0.1" value="1" style="width: 120px;">
+                                            <span id="vizSpeedDisplay" style="min-width: 40px; font-weight: bold;">1.0x</span>
+                                        </label>
+                                    </div>
+                                    <!-- Camera Controls Row -->
+                                    <div style="display: flex; gap: 10px; margin-bottom: 10px; padding: 10px; background: #2d2d2d; border-radius: 4px; flex-wrap: wrap;">
+                                        <div style="display: flex; gap: 5px; align-items: center;">
+                                            <span style="color: #999; font-size: 0.9em; margin-right: 5px;">View:</span>
+                                            <button id="vizCameraTopButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Top</button>
+                                            <button id="vizCameraFrontButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Front</button>
+                                            <button id="vizCameraSideButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Side</button>
+                                            <button id="vizCameraIsoButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Isometric</button>
+                                        </div>
+                                        <div style="display: flex; gap: 5px; align-items: center;">
+                                            <span style="color: #999; font-size: 0.9em; margin-right: 5px;">Zoom:</span>
+                                            <button id="vizZoomInButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">+</button>
+                                            <button id="vizZoomOutButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">−</button>
+                                        </div>
+                                    </div>
+                                    <div id="gcodeVisualizerContainer" style="width: 100%; height: 550px; border: 1px solid #444; border-radius: 4px; background: #1a1a1a;"></div>
+                                </div>
                             </div>
                         </div>
 
