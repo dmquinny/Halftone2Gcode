@@ -204,6 +204,29 @@ async function generateGcodeWithStreaming() {
             delete window.gcodeData;
         }
 
+        // Load entire G-code file into Monaco Editor
+        // Monaco uses virtual scrolling, so it can handle millions of lines efficiently
+        try {
+            // Use custom Tauri command to read the file
+            const fileContent = await window.__TAURI__.core.invoke('read_gcode_file', {
+                filePath: filePath
+            });
+
+            if (window.monacoGcode && window.monacoGcode.isLoaded()) {
+                window.monacoGcode.display(fileContent);
+                const lineCount = fileContent.split('\n').length;
+                console.log(`✅ Loaded all ${lineCount.toLocaleString()} lines into Monaco Editor (virtual scrolling)`);
+            }
+
+            // Also load into 3D visualizer using file path (streaming)
+            if (typeof window.loadGCodeIntoVisualizer === 'function') {
+                window.loadGCodeIntoVisualizer(null, filePath);
+            }
+        } catch (error) {
+            console.error('Failed to load G-code into Monaco:', error);
+            console.log('Error details:', error);
+        }
+
         // Add Open File button to the G-code info area
         if (gcodeInfo) {
             gcodeInfo.innerHTML = `
