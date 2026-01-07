@@ -6,23 +6,18 @@ let aceLoaded = false;
 
 // Initialize Ace Editor
 function initAceGcodeViewer() {
-    console.log('🔧 Initializing Ace Editor...');
-
     if (typeof ace === 'undefined') {
         console.error('❌ Ace Editor not loaded');
         return;
     }
 
     aceLoaded = true;
-    console.log('✅ Ace Editor loaded successfully!');
 
     const container = document.getElementById('monacoEditorContainer');
     if (!container) {
         console.error('❌ Container not found');
         return;
     }
-
-    console.log('📝 Creating Ace Editor instance...');
 
     // Create Ace Editor
     aceEditor = ace.edit(container);
@@ -38,9 +33,6 @@ function initAceGcodeViewer() {
         highlightActiveLine: false,
         highlightGutterLine: false,
         displayIndentGuides: false,
-        enableBasicAutocompletion: false,
-        enableLiveAutocompletion: false,
-        enableSnippets: false,
         showLineNumbers: true,
         showGutter: true,
         wrap: false
@@ -48,28 +40,19 @@ function initAceGcodeViewer() {
 
     // Set initial empty value
     aceEditor.setValue('', -1);
-
-    console.log('✅ Ace Editor initialized successfully');
 }
 
 // Display G-code in Ace Editor
 function displayGcodeInAce(gcodeText) {
-    console.log('📄 displayGcodeInAce called with', gcodeText ? `${gcodeText.length} chars` : 'empty text');
-
     const container = document.getElementById('monacoEditorContainer');
     if (container) {
         container.style.display = 'block';
     }
 
     if (aceEditor) {
-        console.log('📝 Setting Ace Editor value...');
-
         aceEditor.setValue(gcodeText, -1); // -1 moves cursor to start
         aceEditor.clearSelection();
         aceEditor.gotoLine(1, 0, false);
-
-        const lineCount = gcodeText.split('\n').length;
-        console.log(`✅ Loaded ${lineCount.toLocaleString()} lines into Ace Editor`);
     } else {
         console.error('❌ Ace Editor not initialized yet');
     }

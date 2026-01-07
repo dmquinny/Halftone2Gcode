@@ -34,7 +34,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 await new Promise(resolve => setTimeout(resolve, 50));
 
                 if (typeof initGCodeVisualizer === 'function') {
-                    console.log('🎬 Initializing visualizer on demand...');
                     initGCodeVisualizer();
                     visualizerLoaded = true;
 
@@ -47,8 +46,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // If there's pending G-code data, load it now
                     if (pendingGCodeData) {
-                        console.log('📊 Loading pending G-code data into visualizer...');
-
                         // Load the G-code (Three.js canvas is already in the container)
                         if (pendingGCodeData.filePath) {
                             await window.gcodeVisualizer.loadGCodeFromFile(
@@ -245,25 +242,16 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
     const imageHeight = heightInput ? parseFloat(heightInput.value) : null;
     const materialThickness = thicknessInput ? parseFloat(thicknessInput.value) : null;
 
-    if (imageWidth && imageHeight) {
-        console.log(`📐 Dimensions: ${imageWidth}mm x ${imageHeight}mm, thickness: ${materialThickness}mm`);
-    }
-
     // Check if visualizer is loaded
     if (window.gcodeVisualizer && visualizerLoaded) {
-        console.log('📊 Loading G-code into visualizer...');
-
         // Use file path if provided (streaming mode), otherwise use text content
         if (filePath) {
-            console.log('🗂️ Loading G-code from file path (streaming mode):', filePath);
             window.gcodeVisualizer.loadGCodeFromFile(filePath, imageWidth, imageHeight, materialThickness);
         } else if (gcodeText) {
-            console.log('💾 Loading G-code from text content (RAM mode)');
             window.gcodeVisualizer.loadGCode(gcodeText, imageWidth, imageHeight, materialThickness);
         }
     } else {
         // Visualizer not loaded yet - store data for later
-        console.log('⏳ Visualizer not loaded yet - storing G-code data for when user loads it');
         pendingGCodeData = {
             gcodeText: gcodeText,
             filePath: filePath,

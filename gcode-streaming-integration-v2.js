@@ -9,12 +9,6 @@ async function generateGcodeWithStreaming() {
         return false;
     }
 
-    // Debug: Check what's available
-    console.log('=== Tauri Debug Info ===');
-    console.log('window.__TAURI__:', typeof window.__TAURI__, window.__TAURI__);
-    console.log('window.__TAURI_INTERNALS__:', typeof window.__TAURI_INTERNALS__);
-    console.log('generateGcodeStreaming:', typeof generateGcodeStreaming);
-
     // Check if Tauri is available
     if (!window.__TAURI__) {
         const msg = 'Streaming is only available in the desktop app.\n\n' +
@@ -214,8 +208,6 @@ async function generateGcodeWithStreaming() {
 
             if (window.monacoGcode && window.monacoGcode.isLoaded()) {
                 window.monacoGcode.display(fileContent);
-                const lineCount = fileContent.split('\n').length;
-                console.log(`✅ Loaded all ${lineCount.toLocaleString()} lines into Monaco Editor (virtual scrolling)`);
             }
 
             // Also load into 3D visualizer using file path (streaming)

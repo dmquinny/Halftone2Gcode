@@ -382,7 +382,6 @@ class GCodeVisualizer {
         if (!this.materialBlock) return;
 
         this.materialBlock.visible = !this.materialBlock.visible;
-        console.log(`Material block ${this.materialBlock.visible ? 'shown' : 'hidden'}`);
     }
 
     // Camera preset views
@@ -397,7 +396,6 @@ class GCodeVisualizer {
         this.camera.position.set(center.x, distance, center.z);
         this.controls.target.set(center.x, 0, center.z);
         this.controls.update();
-        console.log('📷 Camera set to Top view');
     }
 
     setCameraFront() {
@@ -411,7 +409,6 @@ class GCodeVisualizer {
         this.camera.position.set(center.x, distance * 0.5, -distance);
         this.controls.target.set(center.x, 0, center.z);
         this.controls.update();
-        console.log('📷 Camera set to Front view');
     }
 
     setCameraSide() {
@@ -425,7 +422,6 @@ class GCodeVisualizer {
         this.camera.position.set(distance, distance * 0.5, center.z);
         this.controls.target.set(center.x, 0, center.z);
         this.controls.update();
-        console.log('📷 Camera set to Side view');
     }
 
     setCameraIsometric() {
@@ -440,7 +436,6 @@ class GCodeVisualizer {
         this.camera.position.set(center.x + isoDistance, isoDistance, center.z - isoDistance);
         this.controls.target.set(center.x, 0, center.z);
         this.controls.update();
-        console.log('📷 Camera set to Isometric view');
     }
 
     zoomIn() {
@@ -454,7 +449,6 @@ class GCodeVisualizer {
         direction.normalize();
         this.camera.position.copy(this.controls.target).sub(direction.multiplyScalar(newDistance));
         this.controls.update();
-        console.log('🔍 Zoomed in');
     }
 
     zoomOut() {
@@ -468,7 +462,6 @@ class GCodeVisualizer {
         direction.normalize();
         this.camera.position.copy(this.controls.target).sub(direction.multiplyScalar(newDistance));
         this.controls.update();
-        console.log('🔍 Zoomed out');
     }
 
     // Helper method to get toolpath center
@@ -557,7 +550,6 @@ class GCodeVisualizer {
         if (this.imageWidth && this.imageHeight) {
             sizeX = this.imageWidth + (padding * 2);
             sizeY = this.imageHeight + (padding * 2);
-            console.log(`📐 Using image dimensions: ${this.imageWidth}mm x ${this.imageHeight}mm (+ ${padding}mm padding)`);
         }
 
         // For flat toolpaths (like engravings), use XY size, not Z
