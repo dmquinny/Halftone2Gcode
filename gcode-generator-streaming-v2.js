@@ -96,7 +96,7 @@ function generateGcodeFooter(safeHeight, plotterMode, outputUnits = 'mm') {
     return footerLines;
 }
 
-async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, outputUnits = 'mm', streamer) {
+async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, depthPerPass = 0.1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, outputUnits = 'mm', streamer) {
 
     // Unit conversion setup
     const isInchMode = outputUnits === 'inch';
@@ -385,7 +385,12 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         // Calculate depth needed to achieve this width with the V-bit
                         // Formula: width = 2 * depth * tan(halfAngle), so depth = width / (2 * tan(halfAngle))
                         const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
-                        depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+                        const fullDepth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+
+                        // Apply progressive depth stepping for multiple passes
+                        // Pass 1: depth - (multiPassCount - 1) * depthPerPass, Final pass: full depth
+                        const depthReduction = (multiPassCount - 1 - pass) * depthPerPass;
+                        depth = Math.max(minDepth, fullDepth - depthReduction);
 
                         if (depth > minDepth) {
                             if (i === 0) {
@@ -459,12 +464,9 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
         // Process dots, squares, circles patterns
         const elements = halftoneData.elements;
 
-        for (let pass = 0; pass < multiPassCount; pass++) {
-            if (multiPassCount > 1 && !plotterMode) {
-                await writeLine(`(Pass ${pass + 1} of ${multiPassCount})`);
-            }
-
-            for (let i = 0; i < elements.length; i++) {
+        // For elements, we do all passes at each location (more efficient)
+        // So no outer pass loop needed here
+        for (let i = 0; i < elements.length; i++) {
                 const element = elements[i];
                 const x = element.x + xOffset;
                 // Flip Y coordinate: image Y increases down, CNC Y increases up
@@ -594,59 +596,41 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                     depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
 
                     if (depth > minDepth) {
-                        // For dots pattern, engrave a circular pocket
-                        if (patternType === 'dots') {
-                            // Calculate radius at the surface for the target width
-                            const surfaceRadius = targetWidth / 2;
+                        // Rapid move to element position
+                        const cmd1 = buildMove('G0', x, y, null, null);
+                        if (cmd1) await writeLine(cmd1);
+                        rapidMoveCount++;
+                        const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
+                        totalTime += (rapidDist / rapidRate) * 60;
 
-                            // Move to start point (right side of circle)
-                            const startX = x + surfaceRadius;
-                            const startY = y;
+                        // Do all passes at this location before moving to next element
+                        // Each pass goes progressively deeper: pass 1 is shallowest, last pass is full depth
+                        for (let pass = 0; pass < multiPassCount; pass++) {
+                            // Calculate depth for this pass - progressive depth stepping
+                            // Pass 1: depth - (multiPassCount - 1) * depthPerPass
+                            // Pass 2: depth - (multiPassCount - 2) * depthPerPass
+                            // Final pass: full depth
+                            const depthReduction = (multiPassCount - 1 - pass) * depthPerPass;
+                            const currentDepth = Math.max(minDepth, depth - depthReduction);
 
-                            const cmd1 = buildMove('G0', startX, startY, null, null);
-                            if (cmd1) await writeLine(cmd1);
-                            rapidMoveCount++;
-                            const rapidDist = Math.sqrt((startX - lastX) ** 2 + (startY - lastY) ** 2);
-                            totalTime += (rapidDist / rapidRate) * 60;
-
-                            // Plunge to depth
-                            const cmd2 = buildMove('G1', null, null, -depth, plungeFeedRate);
+                            // Plunge to current depth
+                            const cmd2 = buildMove('G1', null, null, -currentDepth, plungeFeedRate);
                             if (cmd2) await writeLine(cmd2);
+                            totalTime += (currentDepth / plungeFeedRate) * 60;
 
-                            // Cut circular pocket using G02 (clockwise arc)
-                            const cmd3 = buildArc('G02', startX, startY, null, -surfaceRadius, 0, cuttingFeedRate);
+                            // Retract to safe height (or just above surface for intermediate passes)
+                            const retractHeight = (pass < multiPassCount - 1) ? 1 : safeHeight;
+                            const cmd3 = buildMove('G0', null, null, retractHeight, null);
                             if (cmd3) await writeLine(cmd3);
-
-                            const circumference = 2 * Math.PI * surfaceRadius;
-                            totalCuttingDistance += circumference;
-                            totalTime += (depth / plungeFeedRate) * 60 + (circumference / cuttingFeedRate) * 60;
-
-                            // Retract
-                            const cmd4 = buildMove('G0', null, null, safeHeight, null);
-                            if (cmd4) await writeLine(cmd4);
-                            totalTime += ((safeHeight + depth) / rapidRate) * 60;
-
-                            lastX = startX;
-                            lastY = startY;
-                        } else {
-                            // For squares/other patterns, just plunge at center
-                            const cmd1 = buildMove('G0', x, y, null, null);
-                            if (cmd1) await writeLine(cmd1);
-                            rapidMoveCount++;
-                            const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                            totalTime += (rapidDist / rapidRate) * 60;
-                            const cmd2 = buildMove('G1', null, null, -depth, plungeFeedRate);
-                            if (cmd2) await writeLine(cmd2);
-                            const cmd3 = buildMove('G0', null, null, safeHeight, null);
-                            if (cmd3) await writeLine(cmd3);
-                            totalTime += ((depth / plungeFeedRate) + ((safeHeight + depth) / rapidRate)) * 60;
-                            lastX = x;
-                            lastY = y;
+                            totalTime += ((retractHeight + currentDepth) / rapidRate) * 60;
+                            lastZ = retractHeight;
                         }
+
+                        lastX = x;
+                        lastY = y;
                     }
                 }
             }
-        }
     }
 
     await writeLine('(End halftone pattern)');

@@ -83,6 +83,8 @@ const rampingToggle = document.getElementById('rampingToggle');
 const rampDistanceInput = document.getElementById('rampDistance');
 const rampDistanceGroup = document.getElementById('rampDistance-group');
 const multiPassCountInput = document.getElementById('multiPassCount');
+const depthPerPassInput = document.getElementById('depthPerPass');
+const depthPerPassGroup = document.getElementById('depthPerPass-group');
 const boundaryToggle = document.getElementById('boundaryToggle');
 const includeBoundaryInGcodeToggle = document.getElementById('includeBoundaryInGcodeToggle');
 const includeBoundaryInGcodeGroup = document.getElementById('includeBoundaryInGcode-group');
@@ -284,7 +286,7 @@ const generateElementsProgressiveWorkerCode = function generateElementsProgressi
                 // Store coordinates in mm like halftoner app, not pixels
                 const xMM = (x + borderPx) / resolution;
                 const yMM = (y + borderPx) / resolution;
-                elements.push({ x: xMM, y: yMM, width: elementWidth, type: patternType });
+                elements.push({ x: xMM, y: yMM, size: elementWidth, type: patternType });
             }
             processed++;
             if (processed % batchSize === 0) {
@@ -1282,14 +1284,25 @@ toolChangeToggle.addEventListener('change', () => {
     vbitToolNumberGroup.style.display = isChecked ? 'flex' : 'none';
 
     // Only show boundary tool NUMBER if both boundary and tool changer are checked
-    if (boundaryToggle.checked) {
-        boundaryToolNumberGroup.style.display = isChecked ? 'flex' : 'none';
+    if (isChecked && boundaryToggle.checked) {
+        boundaryToolNumberGroup.style.display = 'flex';
+    } else {
+        boundaryToolNumberGroup.style.display = 'none';
     }
 });
 
 rampingToggle.addEventListener('change', () => {
     rampDistanceGroup.style.display = rampingToggle.checked ? 'flex' : 'none';
 });
+
+// Show/hide depth per pass setting based on multi-pass count
+function updateDepthPerPassVisibility() {
+    const multiPassCount = parseInt(multiPassCountInput.value);
+    depthPerPassGroup.style.display = multiPassCount > 1 ? 'flex' : 'none';
+}
+
+multiPassCountInput.addEventListener('input', updateDepthPerPassVisibility);
+multiPassCountInput.addEventListener('change', updateDepthPerPassVisibility);
 
 boundaryToggle.addEventListener('change', () => {
     const isChecked = boundaryToggle.checked;
@@ -1744,6 +1757,7 @@ function showPresetModal(mode, type) {
                     boundaryPassDepth: boundaryPassDepthInput.value,
                     includeBoundaryInGcode: includeBoundaryInGcodeToggle.checked,
                     multiPassCount: multiPassCountInput.value,
+                    depthPerPass: depthPerPassInput.value,
                     lineNumbers: lineNumbersToggle.checked,
                     optimizeToolpath: optimizeToolpathToggle.checked,
                     filename: filenameInput.value,
@@ -1839,6 +1853,7 @@ function showPresetModal(mode, type) {
                     boundaryPassDepthInput.value = preset.boundaryPassDepth || 0.5;
                     includeBoundaryInGcodeToggle.checked = preset.includeBoundaryInGcode !== undefined ? preset.includeBoundaryInGcode : true;
                     multiPassCountInput.value = preset.multiPassCount || 1;
+                    depthPerPassInput.value = preset.depthPerPass !== undefined ? preset.depthPerPass : 0.1;
                     lineNumbersToggle.checked = preset.lineNumbers || false;
                     optimizeToolpathToggle.checked = preset.optimizeToolpath !== undefined ? preset.optimizeToolpath : true;
                     if (preset.filename) filenameInput.value = preset.filename;
@@ -2526,6 +2541,7 @@ generateGcodeButton.addEventListener('click', () => {
     const boundaryToolSize = parseFloat(boundaryToolSizeInput.value);
     const boundaryPassDepth = parseFloat(boundaryPassDepthInput.value);
     const multiPassCount = parseInt(multiPassCountInput.value);
+    const depthPerPass = parseFloat(depthPerPassInput.value);
     const ramping = rampingToggle.checked;
     const rampDistance = parseFloat(rampDistanceInput.value);
     const boundary = boundaryToggle.checked;
@@ -2609,6 +2625,7 @@ generateGcodeButton.addEventListener('click', () => {
             materialThickness: plotterMode ? 0 : materialThickness,
             boundaryPassDepth: plotterMode ? 0 : boundaryPassDepth,
             multiPassCount: plotterMode ? 1 : multiPassCount,
+            depthPerPass: plotterMode ? 0.1 : depthPerPass,
             ramping: plotterMode ? false : ramping,
             rampDistance: plotterMode ? 0 : rampDistance,
             boundary: plotterMode ? false : boundary,
@@ -3256,6 +3273,8 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, false, options.shadowsLevel || 0, options.midtonesLevel || 1.0, options.highlightsLevel || 255);
     }
 
+    const borderMM = options.border || 0;
+    const borderPx = borderMM * resolution;
     const elements = [];
     const spacingPx = spacing * resolution;
     const offsetOddLines = options.offsetOddLines || false;
@@ -3288,7 +3307,7 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
                         type: 'circle',
                         x: xMM,
                         y: yMM,
-                        width: elementWidth
+                        size: elementWidth
                     });
                 }
             }
@@ -3296,18 +3315,23 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
         rowIndex++;
     }
 
+    const totalWidthMM = outputWidthMM + (2 * borderMM);
+    const totalHeightMM = outputHeightMM + (2 * borderMM);
+    const totalPixelWidth = pixelWidth + (2 * borderPx);
+    const totalPixelHeight = pixelHeight + (2 * borderPx);
+
     return {
         elements: elements,
-        width: outputWidthMM,
-        height: outputHeightMM,
-        pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight,
+        width: totalWidthMM,
+        height: totalHeightMM,
+        pixelWidth: totalPixelWidth,
+        pixelHeight: totalPixelHeight,
         resolution: resolution,
         spacing: spacing,
         minSize: options.minSize || 0,
         maxSize: options.maxSize || spacing,
         patternType: 'dots',
-        border: options.border || 0
+        border: borderMM
     };
 }
 
@@ -3619,12 +3643,12 @@ function displayHalftoneProgressive(partialData, metadata, patternType) {
         const startIndex = Math.max(0, partialData.length - 50);
         for (let i = startIndex; i < partialData.length; i++) {
             const element = partialData[i];
-            // element.x, element.y, and element.width are all in mm - scale directly to canvas
+            // element.x, element.y, and element.size are all in mm - scale directly to canvas
             const x = element.x * scale;
             const y = element.y * scale;
 
-            // Use element.width if available (new format), otherwise calculate from depth (old format)
-            const elementWidth = element.width !== undefined ? element.width :
+            // Use element.size if available (new format), otherwise calculate from depth (old format)
+            const elementWidth = element.size !== undefined ? element.size :
                                 (minSize + ((element.depth || 0) * (maxSize - minSize)));
 
             if (element.type === 'circles' || element.type === 'circle' || element.type === 'dots') {
@@ -3765,12 +3789,12 @@ function displayHalftone(halftoneData) {
         ctx.fillStyle = 'rgb(255, 255, 255)';
 
         halftoneData.elements.forEach((element) => {
-            // element.x, element.y, and element.width are all in mm - scale directly to canvas like halftoner
+            // element.x, element.y, and element.size are all in mm - scale directly to canvas like halftoner
             const x = element.x * scale;
             const y = element.y * scale;
 
-            // Use element.width if available (new format), otherwise calculate from depth (old format)
-            const elementWidth = element.width !== undefined ? element.width :
+            // Use element.size if available (new format), otherwise calculate from depth (old format)
+            const elementWidth = element.size !== undefined ? element.size :
                                 (minSize + ((element.depth || 0) * (maxSize - minSize)));
 
             if (element.type === 'circles' || element.type === 'circle' || element.type === 'dots') {
@@ -4297,10 +4321,10 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
             const x = element.x + xOffset;
             const y = element.y + yOffset;
 
-            // Use element.width if available (new format), otherwise calculate from depth (old format)
+            // Use element.size if available (new format), otherwise calculate from depth (old format)
             const minSize = halftoneData.minSize || 0;
             const maxSize = halftoneData.maxSize || halftoneData.spacing || 1;
-            const targetWidth = element.width !== undefined ? element.width :
+            const targetWidth = element.size !== undefined ? element.size :
                                (minSize + ((element.depth || 0) * (maxSize - minSize)));
 
             // V-bit angle compensation: calculate depth from target width
@@ -4973,6 +4997,7 @@ function loadPreset(type, presetName, silent = false) {
         boundaryPassDepthInput.value = preset.boundaryPassDepth || 0.5;
         includeBoundaryInGcodeToggle.checked = preset.includeBoundaryInGcode !== undefined ? preset.includeBoundaryInGcode : true;
         multiPassCountInput.value = preset.multiPassCount || 1;
+        depthPerPassInput.value = preset.depthPerPass !== undefined ? preset.depthPerPass : 0.1;
         lineNumbersToggle.checked = preset.lineNumbers || false;
         optimizeToolpathToggle.checked = preset.optimizeToolpath !== undefined ? preset.optimizeToolpath : true;
         if (preset.filename) filenameInput.value = preset.filename;
@@ -4993,6 +5018,7 @@ function loadPreset(type, presetName, silent = false) {
         boundaryToggle.dispatchEvent(new Event('change'));
         plotterModeToggle.dispatchEvent(new Event('change'));
         if (plotterLineWidthMethod) plotterLineWidthMethod.dispatchEvent(new Event('change'));
+        updateDepthPerPassVisibility();
     }
 
     return true;
@@ -5023,6 +5049,10 @@ function loadDefaultPresets() {
 // Load default presets on initialization
 loadDefaultPresets();
 
+// Initialize plotter mode visibility after presets are loaded
+plotterModeToggle.dispatchEvent(new Event('change'));
+updatePlotterMethodOptions();
+
 // Event listener for Set Default Presets button
 setDefaultPresetsButton.addEventListener('click', () => {
     showDefaultPresetsModal();
@@ -5030,3 +5060,11 @@ setDefaultPresetsButton.addEventListener('click', () => {
 
 // Initialize theme on page load
 initTheme();
+
+// Initialize all toggle-dependent visibility on page load
+// These must be called after all event listeners are attached
+updateDepthPerPassVisibility();
+toolChangeToggle.dispatchEvent(new Event('change'));
+rampingToggle.dispatchEvent(new Event('change'));
+boundaryToggle.dispatchEvent(new Event('change'));
+splitFilesToggle.dispatchEvent(new Event('change'));

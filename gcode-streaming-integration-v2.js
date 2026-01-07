@@ -90,6 +90,7 @@ async function generateGcodeWithStreaming() {
         const plotterMode = plotterModeToggle.checked;
         // Multi-pass only applies to cutting mode, not plotter mode
         const multiPassCount = plotterMode ? 1 : parseInt(multiPassCountInput.value);
+        const depthPerPass = parseFloat(depthPerPassInput.value);
         const ramping = rampingToggle.checked;
         const rampDistance = parseFloat(rampDistanceInput.value);
         const boundary = boundaryToggle.checked;
@@ -159,6 +160,7 @@ async function generateGcodeWithStreaming() {
             materialThickness,
             boundaryPassDepth,
             multiPassCount,
+            depthPerPass,
             ramping,
             rampDistance,
             boundary,

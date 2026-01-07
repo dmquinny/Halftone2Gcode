@@ -488,39 +488,62 @@ function generateConcentricSquaresProgressive(grayscale, pixelWidth, pixelHeight
 
 function generateElementsProgressive(grayscale, pixelWidth, pixelHeight, spacing, patternType, resolution, totalWidthMM, totalHeightMM, totalPixelWidth, totalPixelHeight, borderPx, options) {
     const spacingPx = spacing * resolution;
+    const borderMM = options.border || 0;
+    const minSize = options.minSize || 0;
+    const maxSize = options.maxSize || spacing;
+    const offsetOddLines = options.offsetOddLines || false;
     const elements = [];
     const batchSize = 25; // Process 25 elements at a time for more frequent updates
-    
+
     const totalCols = Math.ceil(pixelWidth / spacingPx);
     const totalRows = Math.ceil(pixelHeight / spacingPx);
     const totalElements = totalCols * totalRows;
     let processed = 0;
-    
+    let rowIndex = 0;
+
     for (let y = spacingPx / 2; y < pixelHeight; y += spacingPx) {
-        for (let x = spacingPx / 2; x < pixelWidth; x += spacingPx) {
+        const xOffset = (offsetOddLines && rowIndex % 2 === 1) ? spacingPx / 2 : 0;
+        for (let x = spacingPx / 2 + xOffset; x < pixelWidth; x += spacingPx) {
             const px = Math.floor(x);
             const py = Math.floor(y);
-            
+
             if (px >= pixelWidth || py >= pixelHeight) {
                 processed++;
                 continue;
             }
-            
+
             const index = py * pixelWidth + px;
             const brightness = grayscale[index];
-            const depth = 1 - (brightness / 255);
-            
-            if (depth > 0.1) {
+            const bright = brightness / 255;
+
+            // Calculate element size based on pattern type
+            let elementSize;
+            if (patternType === 'dots') {
+                // Area-based calculation for dots like halftoner app
+                const maxArea = Math.PI * (maxSize * 0.5) * (maxSize * 0.5);
+                const dotArea = bright * maxArea;
+                const dotRadius = Math.sqrt(dotArea / Math.PI);
+                elementSize = dotRadius * 2;
+            } else {
+                // For other element types, use linear scaling
+                elementSize = bright * maxSize;
+            }
+
+            if (elementSize > minSize) {
+                // Convert from pixels to mm
+                const xMM = (x + borderPx) / resolution;
+                const yMM = (y + borderPx) / resolution;
+
                 elements.push({
-                    x: x + borderPx,
-                    y: y + borderPx,
-                    depth,
+                    x: xMM,
+                    y: yMM,
+                    size: elementSize,
                     type: patternType
                 });
             }
-            
+
             processed++;
-            
+
             // Send progress update every batch
             if (processed % batchSize === 0) {
                 self.postMessage({
@@ -530,8 +553,9 @@ function generateElementsProgressive(grayscale, pixelWidth, pixelHeight, spacing
                 });
             }
         }
+        rowIndex++;
     }
-    
+
     // Send final result
     self.postMessage({
         type: 'complete',
@@ -543,8 +567,10 @@ function generateElementsProgressive(grayscale, pixelWidth, pixelHeight, spacing
             pixelHeight: totalPixelHeight,
             resolution: resolution,
             spacing: spacing,
+            minSize: minSize,
+            maxSize: maxSize,
             patternType: patternType,
-            border: options.border || 0
+            border: borderMM
         }
     });
 }
