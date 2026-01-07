@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost;">
     <title>Halftone to G-code Converter</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -847,7 +847,56 @@
                         </div>
                         <div class="gcode-info" id="gcodeInfo"></div>
                         <div class="time-estimate" id="timeEstimate"></div>
-                        <textarea id="gcodeOutput" readonly style="display: none; height: 400px; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
+
+                        <!-- Tabs for G-code and Visualizer -->
+                        <div style="margin-top: 15px;">
+                            <div class="tab-buttons" style="display: flex; gap: 5px; margin-bottom: 10px; border-bottom: 2px solid #444;">
+                                <button id="gcodeTextTab" class="gcode-output-tab active" style="padding: 10px 20px; background: #2d2d2d; border: none; border-bottom: 3px solid #5B9BD5; color: white; cursor: pointer; font-size: 14px;">
+                                    📄 G-code Text
+                                </button>
+                                <button id="visualizerTab" class="gcode-output-tab" style="padding: 10px 20px; background: #1e1e1e; border: none; border-bottom: 3px solid transparent; color: #999; cursor: pointer; font-size: 14px;">
+                                    🎬 3D Visualizer
+                                </button>
+                            </div>
+
+                            <!-- Tab Content: G-code Text -->
+                            <div id="gcodeTextContent" class="tab-content" style="display: block;">
+                                <div id="monacoEditorContainer" style="width: 100%; height: 600px; min-height: 600px; border: 1px solid #444; border-radius: 4px; overflow: hidden; background: #1e1e1e;"></div>
+                            </div>
+
+                            <!-- Tab Content: 3D Visualizer -->
+                            <div id="visualizerContent" class="tab-content" style="display: none;">
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px; padding: 10px; background: #2d2d2d; border-radius: 4px;">
+                                    <button id="vizPlayButton" style="flex: 0 0 100px; padding: 8px; background: #4CAF50; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">▶ Play</button>
+                                    <button id="vizPauseButton" style="flex: 0 0 100px; padding: 8px; background: #ff9800; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏸ Pause</button>
+                                    <button id="vizResetButton" style="flex: 0 0 100px; padding: 8px; background: #2196F3; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏮ Reset</button>
+                                    <button id="vizToggleBlockButton" style="flex: 0 0 140px; padding: 8px; background: #9C27B0; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">🧱 Hide Block</button>
+                                    <div style="flex: 1;"></div>
+                                    <label style="display: flex; align-items: center; gap: 8px; color: white;">
+                                        Speed:
+                                        <input type="range" id="vizSpeedSlider" min="0.1" max="5" step="0.1" value="1" style="width: 120px;">
+                                        <span id="vizSpeedDisplay" style="min-width: 40px; font-weight: bold;">1.0x</span>
+                                    </label>
+                                </div>
+                                <!-- Camera Controls Row -->
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px; padding: 10px; background: #2d2d2d; border-radius: 4px; flex-wrap: wrap;">
+                                    <div style="display: flex; gap: 5px; align-items: center;">
+                                        <span style="color: #999; font-size: 0.9em; margin-right: 5px;">View:</span>
+                                        <button id="vizCameraTopButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Top</button>
+                                        <button id="vizCameraFrontButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Front</button>
+                                        <button id="vizCameraSideButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Side</button>
+                                        <button id="vizCameraIsoButton" style="padding: 6px 12px; background: #546E7A; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em;">Isometric</button>
+                                    </div>
+                                    <div style="display: flex; gap: 5px; align-items: center;">
+                                        <span style="color: #999; font-size: 0.9em; margin-right: 5px;">Zoom:</span>
+                                        <button id="vizZoomInButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">+</button>
+                                        <button id="vizZoomOutButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">−</button>
+                                    </div>
+                                </div>
+                                <div id="gcodeVisualizerContainer" style="width: 100%; height: 550px; border: 1px solid #444; border-radius: 4px; background: #1a1a1a;"></div>
+                            </div>
+                        </div>
+
                         <div class="download-settings" style="display: none;">
                             <div class="download-field">
                                 <label for="filenameInput">Filename:</label>
@@ -996,6 +1045,16 @@
     </div>
 
     <!-- Load main app -->
+    <!-- Ace Editor (Replacement for Monaco) -->
+    <script src="ace-editor/ace.js"></script>
+    <script src="ace-gcode-viewer.js"></script>
+
+    <!-- Three.js for 3D Visualization -->
+    <script src="three-js/three.js"></script>
+    <script src="three-js/OrbitControls-standalone.js"></script>
+    <script src="gcode-visualizer.js"></script>
+    <script src="visualizer-controls.js"></script>
+
     <script src="app.js?v=20260103"></script>
 
     <!-- Load streaming support (works in both browser and Tauri, but only activates in Tauri) -->
