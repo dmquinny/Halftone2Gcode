@@ -839,13 +839,30 @@ function initWorker() {
             const endTime = performance.now();
             const duration = ((endTime - startTime) / 1000).toFixed(2);
             
-            // Store G-code in hidden textarea for download
-            const gcodeTextarea = document.getElementById('gcodeOutput');
-            gcodeTextarea.value = data.gcode;
+            // Store G-code for download (in memory, not textarea)
+            window.currentGcodeContent = data.gcode;
             downloadButton.disabled = false;
-            
-            // Display with virtual scrolling
-            displayGcodeVirtual(data.gcode);
+
+            // Display with Monaco Editor (virtual scrolling built-in)
+            console.log('Attempting to display G-code...');
+            console.log('window.monacoGcode exists:', !!window.monacoGcode);
+            console.log('Monaco loaded:', window.monacoGcode ? window.monacoGcode.isLoaded() : false);
+
+            if (window.monacoGcode && window.monacoGcode.isLoaded()) {
+                console.log('Using Monaco Editor to display G-code');
+                window.monacoGcode.display(data.gcode);
+            } else {
+                console.warn('Monaco Editor not loaded yet, waiting and retrying...');
+                // Retry after a short delay
+                setTimeout(() => {
+                    if (window.monacoGcode && window.monacoGcode.isLoaded()) {
+                        console.log('Monaco now loaded, displaying G-code');
+                        window.monacoGcode.display(data.gcode);
+                    } else {
+                        console.error('Monaco Editor failed to load - G-code stored in memory only');
+                    }
+                }, 1000);
+            }
             
             // Handle boundary G-code if present
             if (data.boundaryGcode) {
@@ -2171,7 +2188,13 @@ function handleImageFile(file) {
             // Clear previous halftone preview and gcode
             const ctx = halftoneCanvas.getContext('2d', { willReadFrequently: true });
             ctx.clearRect(0, 0, halftoneCanvas.width, halftoneCanvas.height);
-            gcodeOutput.value = '';
+
+            // Clear Monaco Editor
+            if (window.monacoGcode) {
+                window.monacoGcode.clear();
+            }
+            window.currentGcodeContent = '';
+
             downloadButton.disabled = true;
             gcodeInfo.textContent = '';
             timeEstimate.textContent = '';
@@ -4609,7 +4632,8 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
 
 // Download G-code
 downloadButton.addEventListener('click', async () => {
-    const gcode = gcodeOutput.value;
+    // Get G-code from Monaco Editor or fallback to memory
+    const gcode = window.currentGcodeContent || (window.monacoGcode ? window.monacoGcode.getContent() : '');
 
     // Get filename and extension from UI
     let filename = filenameInput.value.trim() || 'halftone';

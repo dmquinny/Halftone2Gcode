@@ -60,6 +60,7 @@ body {
     grid-template-columns: 350px 1fr;
     gap: 10px;
     height: 100%;
+    overflow: visible;
 }
 
 .left-side {
@@ -67,6 +68,8 @@ body {
     flex-direction: column;
     gap: 0;
     height: 100%;
+    min-width: 350px;
+    flex-shrink: 0;
 }
 
 .left-panel {
@@ -169,9 +172,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    position: sticky;
-    top: 20px;
-    align-self: flex-start;
+    min-width: 0;
+    overflow: visible;
 }
 
 /* View Toggle Styles */
