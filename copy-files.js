@@ -13,14 +13,14 @@ const filesToCopy = [
     'app.js',
     'styles.css',
     'worker.js',
+    'pica.min.js',
     'StreamSaver.js',
     'gcode-streamer.js',
     'gcode-generator-streaming-v2.js',
     'gcode-streaming-integration-v2.js',
     'ace-gcode-viewer.js',
     'gcode-visualizer.js',
-    'visualizer-controls.js',
-    'mitm.html'
+    'visualizer-controls.js'
 ];
 
 // Copy each file
