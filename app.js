@@ -2334,8 +2334,56 @@ function updateHalftoneWarning() {
     }
 }
 
+// High-quality image upscaling using Pica library
+async function upscaleImageWithPica(imageData, width, height, scale) {
+    // Check if Pica is available
+    if (!window.pica) {
+        console.warn('Pica library not loaded, using fallback');
+        // Fallback: return original data and let worker handle it
+        return { data: imageData, width: width, height: height };
+    }
+
+    try {
+        // Create source canvas
+        const srcCanvas = document.createElement('canvas');
+        srcCanvas.width = width;
+        srcCanvas.height = height;
+        const srcCtx = srcCanvas.getContext('2d');
+        srcCtx.putImageData(new ImageData(imageData, width, height), 0, 0);
+
+        // Create destination canvas
+        const destCanvas = document.createElement('canvas');
+        destCanvas.width = Math.floor(width * scale);
+        destCanvas.height = Math.floor(height * scale);
+
+        // Use Pica for high-quality resize with Lanczos3 filtering
+        const pica = window.pica();
+        await pica.resize(srcCanvas, destCanvas, {
+            quality: 3,         // 0-3, 3 is highest quality (Lanczos3)
+            alpha: true,        // Preserve alpha channel
+            unsharpAmount: 80,  // Slight sharpening (0-500)
+            unsharpRadius: 0.6, // Sharpening radius
+            unsharpThreshold: 2 // Sharpening threshold
+        });
+
+        // Get upscaled ImageData
+        const destCtx = destCanvas.getContext('2d');
+        const upscaledImageData = destCtx.getImageData(0, 0, destCanvas.width, destCanvas.height);
+
+        return {
+            data: upscaledImageData.data,
+            width: destCanvas.width,
+            height: destCanvas.height
+        };
+    } catch (error) {
+        console.error('Pica upscaling failed:', error);
+        // Fallback to original data
+        return { data: imageData, width: width, height: height };
+    }
+}
+
 // Update halftone preview function
-function updateHalftonePreview() {
+async function updateHalftonePreview() {
     if (!currentImage) return;
 
     let spacing = parseFloat(spacingInput.value);
@@ -2401,13 +2449,31 @@ function updateHalftonePreview() {
     }
     progressiveLines = [];
     progressiveElements = [];
-    
+
     // Get image data
     const ctx = originalCanvas.getContext('2d', { willReadFrequently: true });
     const imageData = ctx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
-    
+
+    // Prepare image data for worker
+    let processedImageData = imageData.data;
+    let processedWidth = originalCanvas.width;
+    let processedHeight = originalCanvas.height;
+
+    // Use Pica for high-quality upscaling if enabled
+    if (upscale) {
+        previewInfo.textContent = 'Upscaling image with Pica (Lanczos3)...';
+        previewInfo.style.color = '#5B9BD5';
+
+        const upscaled = await upscaleImageWithPica(imageData.data, originalCanvas.width, originalCanvas.height, 4);
+        processedImageData = upscaled.data;
+        processedWidth = upscaled.width;
+        processedHeight = upscaled.height;
+
+        previewInfo.textContent = 'Generating preview... 0%';
+    }
+
     // Create transferable copy of image data buffer
-    const imageBuffer = imageData.data.buffer.slice(0);
+    const imageBuffer = processedImageData.buffer.slice(0);
 
     // Send work to Web Worker using transferable objects (zero-copy transfer)
     try {
@@ -2418,8 +2484,8 @@ function updateHalftonePreview() {
         action: 'generateHalftone',
         data: {
             imageData: new Uint8ClampedArray(imageBuffer),
-            width: originalCanvas.width,
-            height: originalCanvas.height,
+            width: processedWidth,
+            height: processedHeight,
             spacing: spacing,
             angle: angle,
             angle2: angle2,
@@ -2432,7 +2498,7 @@ function updateHalftonePreview() {
             shadows: shadows,
             midtones: midtones,
             highlights: highlights,
-            upscale: upscale,
+            upscale: false,  // Already upscaled with Pica if needed, worker doesn't need to upscale
             options: {
                 border, minSize, maxSize, wavelength, amplitude, 
                 centerOffsetX, centerOffsetY, offsetOddLines, 

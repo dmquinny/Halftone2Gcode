@@ -23,22 +23,28 @@ function generateHalftoneWithProgress(params) {
         upscale, options, shadows, midtones, highlights
     } = params;
     
-    // Resample image to target resolution
-    const resolution = upscale ? 4 : 1;
+    // Image is already upscaled if needed (via Pica in main thread)
+    // Calculate resolution based on received dimensions vs output size
     const aspectRatio = height / width;
     const outputHeightMM = options.lockAspect !== false ? (outputWidthMM * aspectRatio) : (options.outputHeight || outputWidthMM * aspectRatio);
-    const pixelWidth = Math.floor(outputWidthMM * resolution);
-    const pixelHeight = Math.floor(outputHeightMM * resolution);
-    
+
+    // If image was upscaled, width will be 4x larger than original
+    // Calculate actual resolution from received dimensions
+    const resolution = width / outputWidthMM;
+
+    // Use received dimensions directly (already at target resolution)
+    const pixelWidth = width;
+    const pixelHeight = height;
+
     const borderMM = options.border || 0;
     const totalWidthMM = outputWidthMM + (borderMM * 2);
     const totalHeightMM = outputHeightMM + (borderMM * 2);
     const totalPixelWidth = Math.floor(totalWidthMM * resolution);
     const totalPixelHeight = Math.floor(totalHeightMM * resolution);
     const borderPx = borderMM * resolution;
-    
-    // Resample image data to target size
-    const resampledData = resampleImage(imageData, width, height, pixelWidth, pixelHeight);
+
+    // No resampling needed - image is already at correct size
+    const resampledData = imageData;
     
     // Convert to grayscale
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
