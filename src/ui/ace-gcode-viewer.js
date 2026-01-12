@@ -22,9 +22,9 @@ function initAceGcodeViewer() {
     // Create Ace Editor
     aceEditor = ace.edit(container);
 
-    // Configure editor
-    aceEditor.setTheme('ace/theme/tomorrow_night');
-    aceEditor.session.setMode('ace/mode/gcode');
+    // Configure editor with custom theme and enhanced G-code mode
+    aceEditor.setTheme('ace/theme/gcode-pro');
+    aceEditor.session.setMode('ace/mode/gcode-enhanced');
     aceEditor.setReadOnly(true);
     aceEditor.setOptions({
         fontSize: '14px',

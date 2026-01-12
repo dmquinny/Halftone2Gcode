@@ -3890,6 +3890,13 @@ function displayHalftone(halftoneData) {
 function optimizeToolpath(lines) {
     if (lines.length <= 1) return lines;
 
+    // Use RBush for spatial indexing if available (much faster for large datasets)
+    // Only use RBush for 500+ lines as it has setup overhead
+    if (typeof RBush !== 'undefined' && lines.length > 500) {
+        return optimizeToolpathWithRBush(lines);
+    }
+
+    // Fallback to linear search for small datasets or if RBush not loaded
     const optimized = [];
     const remaining = [...lines];
 
@@ -3948,10 +3955,126 @@ function optimizeToolpath(lines) {
     return optimized;
 }
 
+// RBush-accelerated toolpath optimization (O(n log n) instead of O(n²))
+function optimizeToolpathWithRBush(lines) {
+    const optimized = [];
+    const tree = new RBush();
+
+    // Build spatial index with both start and end points of each line
+    const items = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length === 0) continue;
+
+        const start = line[0];
+        const end = line[line.length - 1];
+
+        // Add start point to spatial index
+        items.push({
+            minX: start.x,
+            minY: start.y,
+            maxX: start.x,
+            maxY: start.y,
+            lineIndex: i,
+            isEnd: false,
+            line: line
+        });
+
+        // Add end point to spatial index
+        items.push({
+            minX: end.x,
+            minY: end.y,
+            maxX: end.x,
+            maxY: end.y,
+            lineIndex: i,
+            isEnd: true,
+            line: line
+        });
+    }
+
+    tree.load(items);
+
+    // Start with first line
+    const visited = new Set();
+    let currentLine = lines[0];
+    optimized.push(currentLine);
+    visited.add(0);
+
+    // Nearest neighbor using spatial queries
+    while (visited.size < lines.length) {
+        const lastPoint = currentLine[currentLine.length - 1];
+
+        // Start with larger radius for better performance (fewer iterations)
+        let searchRadius = 50;
+        let found = null;
+        let bestDist = Infinity;
+        let bestCandidate = null;
+
+        // Search once with large radius, then filter to find nearest
+        while (!found && searchRadius < 10000) {
+            const candidates = tree.search({
+                minX: lastPoint.x - searchRadius,
+                minY: lastPoint.y - searchRadius,
+                maxX: lastPoint.x + searchRadius,
+                maxY: lastPoint.y + searchRadius
+            });
+
+            // Find nearest unvisited candidate
+            for (const candidate of candidates) {
+                if (visited.has(candidate.lineIndex)) continue;
+
+                const dx = candidate.minX - lastPoint.x;
+                const dy = candidate.minY - lastPoint.y;
+                const dist = dx * dx + dy * dy; // Skip sqrt for speed
+
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestCandidate = candidate;
+                }
+            }
+
+            if (bestCandidate) {
+                found = bestCandidate;
+                break;
+            }
+
+            // Only expand if nothing found
+            searchRadius *= 3; // Faster expansion
+        }
+
+        if (!found) break; // No more lines found
+
+        // Add the found line
+        let nextLine = found.line;
+
+        // Reverse if end point was closer
+        if (found.isEnd) {
+            nextLine = [...nextLine].reverse();
+        }
+
+        optimized.push(nextLine);
+        visited.add(found.lineIndex);
+        currentLine = nextLine;
+
+        // Remove all items for this line from tree
+        tree.remove(items.find(item => item.lineIndex === found.lineIndex && !item.isEnd));
+        tree.remove(items.find(item => item.lineIndex === found.lineIndex && item.isEnd));
+    }
+
+    return optimized;
+}
+
 // Optimize element toolpath (for circles, squares, dots, stipple)
 function optimizeElements(elements) {
     if (elements.length <= 1) return elements;
 
+    // Use RBush for spatial indexing if available (much faster for large datasets)
+    // Only use RBush for 1000+ elements as it has setup overhead
+    if (typeof RBush !== 'undefined' && elements.length > 1000) {
+        return optimizeElementsWithRBush(elements);
+    }
+
+    // Fallback to linear search for small datasets or if RBush not loaded
     const optimized = [];
     const remaining = [...elements];
 
@@ -3979,6 +4102,82 @@ function optimizeElements(elements) {
         }
 
         optimized.push(remaining.splice(nearestIndex, 1)[0]);
+    }
+
+    return optimized;
+}
+
+// RBush-accelerated element optimization (O(n log n) instead of O(n²))
+function optimizeElementsWithRBush(elements) {
+    const optimized = [];
+    const tree = new RBush();
+
+    // Build spatial index
+    const items = elements.map((el, i) => ({
+        minX: el.x,
+        minY: el.y,
+        maxX: el.x,
+        maxY: el.y,
+        index: i,
+        element: el
+    }));
+
+    tree.load(items);
+
+    // Start with first element
+    const visited = new Set();
+    let currentEl = elements[0];
+    optimized.push(currentEl);
+    visited.add(0);
+
+    // Nearest neighbor using spatial queries
+    while (visited.size < elements.length) {
+        // Start with larger radius for better performance
+        let searchRadius = 20;
+        let found = null;
+        let bestDist = Infinity;
+        let bestCandidate = null;
+
+        // Search once with large radius, then filter to find nearest
+        while (!found && searchRadius < 10000) {
+            const candidates = tree.search({
+                minX: currentEl.x - searchRadius,
+                minY: currentEl.y - searchRadius,
+                maxX: currentEl.x + searchRadius,
+                maxY: currentEl.y + searchRadius
+            });
+
+            // Find nearest unvisited candidate
+            for (const candidate of candidates) {
+                if (visited.has(candidate.index)) continue;
+
+                const dx = candidate.minX - currentEl.x;
+                const dy = candidate.minY - currentEl.y;
+                const dist = dx * dx + dy * dy; // Skip sqrt for speed
+
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestCandidate = candidate;
+                }
+            }
+
+            if (bestCandidate) {
+                found = bestCandidate;
+                break;
+            }
+
+            // Only expand if nothing found
+            searchRadius *= 3; // Faster expansion
+        }
+
+        if (!found) break; // No more elements found
+
+        optimized.push(found.element);
+        visited.add(found.index);
+        currentEl = found.element;
+
+        // Remove from tree
+        tree.remove(found);
     }
 
     return optimized;

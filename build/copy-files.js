@@ -1,45 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 
+// Paths relative to project root (parent of build/)
+const rootDir = path.join(__dirname, '..');
+const distDir = path.join(rootDir, 'dist');
+
 // Create dist directory if it doesn't exist
-const distDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(distDir)) {
     fs.mkdirSync(distDir, { recursive: true });
 }
 
-// Files to copy
-const filesToCopy = [
-    'index.html',
-    'app.js',
-    'styles.css',
-    'worker.js',
-    'pica.min.js',
-    'StreamSaver.js',
-    'gcode-streamer.js',
-    'gcode-generator-streaming-v2.js',
-    'gcode-streaming-integration-v2.js',
-    'ace-gcode-viewer.js',
-    'gcode-visualizer.js',
-    'visualizer-controls.js'
-];
-
-// Copy each file
-filesToCopy.forEach(file => {
-    const src = path.join(__dirname, file);
-    const dest = path.join(distDir, file);
-
-    if (fs.existsSync(src)) {
-        fs.copyFileSync(src, dest);
-        console.log(`Copied ${file} to dist/`);
-    } else {
-        console.warn(`Warning: ${file} not found, skipping...`);
-    }
-});
-
-// Copy Ace Editor directory
-const aceSrc = path.join(__dirname, 'ace-editor');
-const aceDest = path.join(distDir, 'ace-editor');
-
+// Helper function to recursively copy directories
 function copyDir(src, dest) {
     if (!fs.existsSync(dest)) {
         fs.mkdirSync(dest, { recursive: true });
@@ -59,22 +30,33 @@ function copyDir(src, dest) {
     }
 }
 
-if (fs.existsSync(aceSrc)) {
-    copyDir(aceSrc, aceDest);
-    console.log('Copied ace-editor/ directory to dist/');
-} else {
-    console.warn('Warning: ace-editor/ directory not found, skipping...');
-}
+// Copy index.html
+console.log('Copying index.html...');
+fs.copyFileSync(
+    path.join(rootDir, 'index.html'),
+    path.join(distDir, 'index.html')
+);
 
-// Copy Three.js directory
-const threeSrc = path.join(__dirname, 'three-js');
-const threeDest = path.join(distDir, 'three-js');
+// Copy assets directory
+console.log('Copying assets/...');
+copyDir(
+    path.join(rootDir, 'assets'),
+    path.join(distDir, 'assets')
+);
 
-if (fs.existsSync(threeSrc)) {
-    copyDir(threeSrc, threeDest);
-    console.log('Copied three-js/ directory to dist/');
-} else {
-    console.warn('Warning: three-js/ directory not found, skipping...');
-}
+// Copy src directory
+console.log('Copying src/...');
+copyDir(
+    path.join(rootDir, 'src'),
+    path.join(distDir, 'src')
+);
 
-console.log('Build preparation complete!');
+// Copy lib directory
+console.log('Copying lib/...');
+copyDir(
+    path.join(rootDir, 'lib'),
+    path.join(distDir, 'lib')
+);
+
+console.log('\n✓ Build preparation complete!');
+console.log('All files copied to dist/ with new folder structure.');

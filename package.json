@@ -6,7 +6,7 @@
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "copy-files": "node copy-files.js",
+    "copy-files": "node build/copy-files.js",
     "build": "tauri build",
     "serve": "python -m http.server 8080"
   },

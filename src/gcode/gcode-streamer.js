@@ -6,7 +6,7 @@ class GcodeStreamer {
         this.isStreaming = false;
         this.lineCount = 0;
         this.buffer = [];
-        this.bufferSize = 1000; // Write every 1000 lines
+        this.bufferSize = 10000; // Write every 10,000 lines (increased from 1000 for better performance)
 
         // File splitting properties
         this.maxLinesPerFile = 0; // 0 = no splitting

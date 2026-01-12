@@ -34,7 +34,7 @@ class GCodeVisualizer {
     init() {
         // Create scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1a1a1a);
+        this.scene.background = new THREE.Color(0x0d0d0d); // Professional near-black background
 
         // Create camera
         const aspect = this.container.clientWidth / this.container.clientHeight;
@@ -59,7 +59,7 @@ class GCodeVisualizer {
         // Add grid helper positioned so origin (0,0,0) is at corner
         const gridSize = 800;
         const gridDivisions = 80;
-        const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x444444, 0x222222);
+        const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x2a2a2a, 0x1a1a1a); // Subtle professional grid
         // Offset grid so (0,0,0) is at the corner instead of center
         grid.position.set(gridSize / 2, 0, -gridSize / 2);
         this.scene.add(grid);
@@ -71,7 +71,7 @@ class GCodeVisualizer {
         // Add tool visualization (small cone)
         const toolHeight = 10;
         const toolGeometry = new THREE.ConeGeometry(2, toolHeight, 8);
-        const toolMaterial = new THREE.MeshPhongMaterial({ color: 0xff6600 });
+        const toolMaterial = new THREE.MeshPhongMaterial({ color: 0xff4444 }); // Red for plunge/active cutting
         this.toolMesh = new THREE.Mesh(toolGeometry, toolMaterial);
         this.toolMesh.rotation.x = Math.PI; // Point downward
         this.toolMeshHeight = toolHeight; // Store for positioning offset
@@ -215,12 +215,12 @@ class GCodeVisualizer {
             }
         }
 
-        // Create rapid moves line (green)
+        // Create rapid moves line (cyan)
         if (rapidVertices.length > 0) {
             const rapidGeometry = new THREE.BufferGeometry();
             rapidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(rapidVertices, 3));
             const rapidMaterial = new THREE.LineBasicMaterial({
-                color: 0x00ff66,
+                color: 0x00ffff, // Professional cyan for rapids
                 linewidth: 2,
                 opacity: 0.6,
                 transparent: true
@@ -229,12 +229,12 @@ class GCodeVisualizer {
             this.pathGroup.add(rapidLines);
         }
 
-        // Create cutting moves line (orange)
+        // Create cutting moves line (blue)
         if (cuttingVertices.length > 0) {
             const cuttingGeometry = new THREE.BufferGeometry();
             cuttingGeometry.setAttribute('position', new THREE.Float32BufferAttribute(cuttingVertices, 3));
             const cuttingMaterial = new THREE.LineBasicMaterial({
-                color: 0xff9900,
+                color: 0x4488ff, // Professional blue for cutting
                 linewidth: 2,
                 opacity: 1.0,
                 transparent: false
@@ -583,17 +583,17 @@ class GCodeVisualizer {
             if (!tube.material) continue;
 
             if (index < this.currentLine) {
-                // Completed - gray
-                tube.material.color.setHex(0x333333);
+                // Completed - dark gray
+                tube.material.color.setHex(0x404040);
                 tube.material.opacity = 0.3;
             } else if (index === this.currentLine) {
-                // Current - bright orange
-                tube.material.color.setHex(0xff6600);
+                // Current - bright red (active cutting)
+                tube.material.color.setHex(0xff4444);
                 tube.material.opacity = 1.0;
             } else {
                 // Upcoming - original color
                 const move = this.moves[index];
-                const color = move.type === 'rapid' ? 0x00ff66 : 0xff9900;
+                const color = move.type === 'rapid' ? 0x00ffff : 0x4488ff; // Cyan for rapids, blue for cutting
                 tube.material.color.setHex(color);
                 tube.material.opacity = 0.9;
             }

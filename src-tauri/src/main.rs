@@ -2,14 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
 
 // Global file handle for streaming G-code
 struct GcodeFile {
-    file: Mutex<Option<File>>,
+    file: Mutex<Option<BufWriter<File>>>,
     path: Mutex<Option<PathBuf>>,
 }
 
@@ -21,7 +21,10 @@ fn start_gcode_stream(file_path: String, state: State<GcodeFile>) -> Result<(), 
     let file = File::create(&path)
         .map_err(|e| format!("Failed to create file: {}", e))?;
 
-    *state.file.lock().unwrap() = Some(file);
+    // Wrap in BufWriter with 64KB buffer for better write performance
+    let buffered_file = BufWriter::with_capacity(65536, file);
+
+    *state.file.lock().unwrap() = Some(buffered_file);
     *state.path.lock().unwrap() = Some(path);
 
     Ok(())

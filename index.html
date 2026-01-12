@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost;">
     <title>Halftone to G-code Converter</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
     <div class="container">
@@ -474,7 +474,7 @@
                     <input type="number" id="depthPerPass" min="0.01" max="1.0" step="0.05" value="0.1">
                     <button class="increment-btn" data-target="depthPerPass">+</button>
                 </div>
-                <p class="help-text">Depth difference between passes (smaller = more gradual, larger = faster)</p>
+                <p class="help-text">Depth increment per pass - e.g., with 2 passes, the final pass cuts 0.1mm deeper than the previous pass</p>
             </div>
 
             <div class="control-group" id="materialThickness-group">
@@ -1075,22 +1075,27 @@
     </div>
 
     <!-- Load main app -->
+    <!-- RBush for spatial indexing (toolpath optimization) -->
+    <script src="lib/rbush.min.js"></script>
+
     <!-- Ace Editor (Replacement for Monaco) -->
-    <script src="ace-editor/ace.js"></script>
-    <script src="ace-gcode-viewer.js"></script>
+    <script src="lib/ace-editor/ace.js"></script>
+    <script src="lib/ace-editor/theme-gcode-pro.js"></script>
+    <script src="lib/ace-editor/mode-gcode-enhanced.js"></script>
+    <script src="src/ui/ace-gcode-viewer.js"></script>
 
     <!-- Three.js for 3D Visualization -->
-    <script src="three-js/three.js"></script>
-    <script src="three-js/OrbitControls-standalone.js"></script>
-    <script src="gcode-visualizer.js"></script>
-    <script src="visualizer-controls.js"></script>
+    <script src="lib/three-js/three.js"></script>
+    <script src="lib/three-js/OrbitControls-standalone.js"></script>
+    <script src="src/visualizer/gcode-visualizer.js?v=20260112"></script>
+    <script src="src/ui/visualizer-controls.js"></script>
 
-    <script src="app.js?v=20260103"></script>
+    <script src="src/core/app.js?v=20260103"></script>
 
     <!-- Load streaming support (works in both browser and Tauri, but only activates in Tauri) -->
-    <script src="gcode-streamer.js"></script>
-    <script src="gcode-generator-streaming-v2.js"></script>
-    <script src="gcode-streaming-integration-v2.js"></script>
+    <script src="src/gcode/gcode-streamer.js"></script>
+    <script src="src/gcode/gcode-generator-streaming-v2.js"></script>
+    <script src="src/gcode/gcode-streaming-integration-v2.js"></script>
 
     <!-- Initialize streaming for Tauri -->
     <script>
@@ -1126,6 +1131,6 @@
     </script>
 
     <!-- Pica library for high-quality image upscaling -->
-    <script src="pica.min.js"></script>
+    <script src="lib/pica.min.js"></script>
 </body>
 </html>
