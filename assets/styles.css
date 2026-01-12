@@ -57,7 +57,7 @@ body {
 
 .main-layout {
     display: grid;
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 420px 1fr;
     gap: 10px;
     height: 100%;
     overflow: visible;
@@ -68,7 +68,7 @@ body {
     flex-direction: column;
     gap: 0;
     height: 100%;
-    min-width: 350px;
+    min-width: 420px;
     flex-shrink: 0;
 }
 
@@ -1190,3 +1190,296 @@ input:checked + .toggle-slider:before {
     background: rgba(40, 167, 69, 0.15);
 }
 
+/* ========================================
+   COLLAPSIBLE GROUPS
+   ======================================== */
+
+.collapsible-group {
+    margin-bottom: 10px;
+    border-radius: 6px;
+    background: var(--control-bg);
+    border: 1px solid var(--border-color);
+}
+
+.collapsible-header {
+    width: 100%;
+    padding: 12px 15px;
+    background: var(--control-bg);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background 0.2s ease;
+    text-align: left;
+    user-select: none;
+}
+
+.collapsible-header:hover {
+    background: var(--border-color);
+}
+
+.collapsible-header:active {
+    transform: scale(0.99);
+}
+
+[data-theme="dark"] .collapsible-header {
+    background: #2a2a2a;
+    border-bottom-color: #404040;
+}
+
+[data-theme="dark"] .collapsible-header:hover {
+    background: #333333;
+}
+
+.group-title {
+    font-weight: 600;
+    flex: 1;
+}
+
+.collapse-icon {
+    font-size: 12px;
+    transition: transform 0.3s ease;
+    margin-left: 10px;
+    color: var(--text-secondary);
+}
+
+/* Rotate icon when collapsed */
+.collapsible-group[data-expanded="false"] .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    transition: all 0.3s ease-out;
+}
+
+.collapsible-content[data-expanded="true"] {
+    display: block;
+    padding: 15px 10px;
+    opacity: 1;
+}
+
+.collapsible-content[data-expanded="false"] {
+    display: none;
+    padding: 0;
+    opacity: 0;
+    height: 0;
+}
+
+/* Adjust control groups inside collapsible sections */
+.collapsible-content .control-group {
+    margin-bottom: 15px;
+    padding: 0;
+}
+
+.collapsible-content .control-group:last-child {
+    margin-bottom: 0;
+}
+
+/* Add subtle indicator for expanded groups */
+.collapsible-group[data-expanded="true"] {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .collapsible-group[data-expanded="true"] {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Optional: Add a visual separator between groups */
+.collapsible-group + .collapsible-group {
+    margin-top: 8px;
+}
+
+/* Smooth transitions for all collapsible interactions */
+.collapsible-group * {
+    transition-timing-function: ease-out;
+}
+
+/* ========================================
+   STICKY ACTION BUTTONS
+   ======================================== */
+
+.sticky-actions {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-color);
+    padding: 15px 10px;
+    margin: -10px -10px 15px -10px;
+    border-bottom: 2px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .sticky-actions {
+    background: #1a1a1a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.sticky-actions .control-group {
+    margin-bottom: 0;
+}
+
+/* ========================================
+   TWO-COLUMN COMPACT LAYOUT WITH TOOLTIPS
+   ======================================== */
+
+/* Two-column grid for controls */
+.control-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.control-grid-2col .control-group {
+    margin-bottom: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Full-width controls (buttons, selects that need space) */
+.control-grid-2col .full-width {
+    grid-column: 1 / -1;
+}
+
+/* Compact control group styling */
+.control-group.compact label {
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 5px;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.control-group.compact input[type="number"],
+.control-group.compact select {
+    font-size: 13px;
+    padding: 6px 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.control-group.compact .input-with-buttons {
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.control-group.compact .input-with-buttons button {
+    padding: 6px 8px;
+    font-size: 13px;
+    min-width: 32px;
+}
+
+.control-group.compact .input-with-buttons input {
+    min-width: 0;
+    flex: 1;
+}
+
+.control-group.compact .input-group {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.control-group.compact .input-group input {
+    min-width: 0;
+    flex: 1;
+}
+
+/* Hide verbose help text in compact mode */
+.control-group.compact .help-text {
+    display: none;
+}
+
+/* CSS Tooltip with ? icon */
+.help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--border-color);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: bold;
+    cursor: help;
+    flex-shrink: 0;
+    position: relative;
+}
+
+[data-theme="dark"] .help-icon {
+    background: #404040;
+    color: #b0b0b0;
+}
+
+.help-icon:hover {
+    background: #5B9BD5;
+    color: white;
+}
+
+/* Tooltip content - appears on hover */
+.help-icon::after {
+    content: attr(data-tooltip);
+    position: fixed;
+    top: var(--tooltip-top, -9999px);
+    left: var(--tooltip-left, -9999px);
+    transform: translateX(-50%) translateY(-100%);
+    padding: 8px 12px;
+    background: #2a2a2a;
+    color: #e0e0e0;
+    font-size: 11px;
+    font-weight: normal;
+    line-height: 1.4;
+    border-radius: 6px;
+    white-space: normal;
+    width: 200px;
+    max-width: 90vw;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 10000;
+}
+
+/* Tooltip arrow */
+.help-icon::before {
+    content: '';
+    position: fixed;
+    top: var(--arrow-top, -9999px);
+    left: var(--arrow-left, -9999px);
+    transform: translateX(-50%) translateY(-100%);
+    border: 6px solid transparent;
+    border-top-color: #2a2a2a;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 10000;
+}
+
+/* Show tooltip on hover */
+.help-icon:hover::after,
+.help-icon:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Light theme tooltip */
+[data-theme="light"] .help-icon::after {
+    background: #333333;
+    color: #ffffff;
+}
+
+[data-theme="light"] .help-icon::before {
+    border-top-color: #333333;
+}

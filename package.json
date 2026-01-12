@@ -1,6 +1,6 @@
 {
   "name": "halftone-converter",
-  "version": "0.1.0",
+  "version": "1.4.0",
   "description": "Halftone to G-code Converter - Desktop App",
   "main": "app.js",
   "scripts": {

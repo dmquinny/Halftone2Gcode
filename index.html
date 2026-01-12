@@ -28,297 +28,323 @@
                     <div id="halftone-tab" class="tab-content active">
                 <div class="controls">
 
-            <!-- Image Preset Management -->
-            <div class="control-group">
-                <label>Image Presets:</label>
-                <div style="display: flex; gap: 10px;">
-                    <button id="saveImagePresetButton" class="preset-button" style="flex: 1;" title="Save halftone and advanced settings">Save Preset</button>
-                    <button id="loadImagePresetButton" class="preset-button" style="flex: 1;" title="Load halftone and advanced settings">Load Preset</button>
+            <!-- Sticky Action Buttons -->
+            <div class="sticky-actions">
+                <input type="file" id="imageInput" accept="image/*">
+                <label for="imageInput" class="upload-button full-width-button">Choose Image</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button id="generatePreviewButton" disabled style="flex: 1;">Generate Halftone Preview</button>
+                    <span id="previewProgress" style="min-width: 45px; font-weight: bold; color: #5B9BD5; display: none;"></span>
                 </div>
-                <p class="help-text">Save halftone, image adjustments, and advanced settings</p>
-            </div>
 
-            <input type="file" id="imageInput" accept="image/*">
-            <label for="imageInput" class="upload-button full-width-button">Choose Image</label>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="generatePreviewButton" disabled style="flex: 1;">Generate Halftone Preview</button>
-                <span id="previewProgress" style="min-width: 45px; font-weight: bold; color: #5B9BD5; display: none;"></span>
-            </div>
-
-            <div class="control-group" id="livePreview-group">
-                <div style="display: flex; gap: 20px; align-items: center;">
-                    <label style="display: flex; align-items: center; gap: 10px;">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="livePreviewToggle">
-                            <span class="toggle-slider"></span>
+                <div class="control-group" id="livePreview-group" style="margin-top: 10px;">
+                    <div style="display: flex; gap: 20px; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="livePreviewToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>Live Preview</span>
                         </label>
-                        <span>Live Preview</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 10px;">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="imageToggle">
-                            <span class="toggle-slider"></span>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="imageToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>Show Original</span>
                         </label>
-                        <span>Show Original</span>
-                    </label>
+                    </div>
+                    <p class="help-text">Auto-update preview when changing settings</p>
                 </div>
-                <p class="help-text">Auto-update preview when changing settings</p>
             </div>
 
-            <div class="control-group" id="imageWidth-group">
-                <label for="imageWidth">
-                    Width (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="imageWidth">-</button>
-                    <input type="number" id="imageWidth" min="10" max="1000" step="10" value="100">
-                    <button class="increment-btn" data-target="imageWidth">+</button>
+            <!-- Group 1: Image Presets -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Image Presets</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="image-presets-group">
+                    <!-- Image Preset Management -->
+                    <div class="control-group">
+                        <label>Image Presets:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="saveImagePresetButton" class="preset-button" style="flex: 1;" title="Save halftone and advanced settings">Save Preset</button>
+                            <button id="loadImagePresetButton" class="preset-button" style="flex: 1;" title="Load halftone and advanced settings">Load Preset</button>
+                        </div>
+                        <p class="help-text">Save halftone, image adjustments, and advanced settings</p>
+                    </div>
                 </div>
-                <p class="help-text">Output width of carved image</p>
             </div>
 
-            <div class="control-group" id="imageHeight-group">
-                <label for="imageHeight">
-                    Height (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="imageHeight">-</button>
-                    <input type="number" id="imageHeight" min="10" max="1000" step="10" value="100">
-                    <button class="increment-btn" data-target="imageHeight">+</button>
+            <!-- Group 2: Dimensions -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Dimensions</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="dimensions-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact" id="imageWidth-group">
+                            <label for="imageWidth">
+                                Width (mm) <span class="help-icon" data-tooltip="Output width of carved image">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="imageWidth">-</button>
+                                <input type="number" id="imageWidth" min="10" max="1000" step="10" value="100">
+                                <button class="increment-btn" data-target="imageWidth">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="imageHeight-group">
+                            <label for="imageHeight">
+                                Height (mm) <span class="help-icon" data-tooltip="Output height of carved image">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="imageHeight">-</button>
+                                <input type="number" id="imageHeight" min="10" max="1000" step="10" value="100">
+                                <button class="increment-btn" data-target="imageHeight">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="border-group">
+                            <label for="border">
+                                Border (mm) <span class="help-icon" data-tooltip="Border margin around the image">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="border">-</button>
+                                <input type="number" id="border" min="0" max="100" step="0.25" value="0.25">
+                                <button class="increment-btn" data-target="border">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="lockAspect-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="lockAspectToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Lock Aspect Ratio</span>
+                                <span class="help-icon" data-tooltip="Maintain original image proportions">?</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
-                <p class="help-text">Output height of carved image</p>
             </div>
 
-            <div class="control-group" id="lockAspect-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="lockAspectToggle" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Lock Aspect Ratio</span>
-                </label>
-                <p class="help-text">Maintain original image proportions</p>
-            </div>
+            <!-- Group 3: Halftone Pattern -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Halftone Pattern</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="halftone-pattern-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact" id="spacing-group">
+                            <label for="spacing">
+                                Spacing (mm) <span class="help-icon" data-tooltip="Distance between lines/elements">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="spacing">-</button>
+                                <input type="number" id="spacing" min="0.05" max="10" step="0.05" value="1">
+                                <button class="increment-btn" data-target="spacing">+</button>
+                            </div>
+                        </div>
 
-            <div class="control-group" id="border-group">
-                <label for="border">
-                    Border (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="border">-</button>
-                    <input type="number" id="border" min="0" max="100" step="0.25" value="0.25">
-                    <button class="increment-btn" data-target="border">+</button>
+                        <div class="control-group compact" id="minSize-group">
+                            <label for="minSize">
+                                Min Size (mm) <span class="help-icon" data-tooltip="Minimum line/element width in light areas">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="minSize">-</button>
+                                <input type="number" id="minSize" min="0" max="5" step="0.1" value="0">
+                                <button class="increment-btn" data-target="minSize">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="maxSize-group">
+                            <label for="maxSize">
+                                Max Size (mm) <span class="help-icon" data-tooltip="Maximum line/element width in dark areas (can exceed spacing for overlap)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="maxSize">-</button>
+                                <input type="number" id="maxSize" min="0" max="10" step="0.1" value="2">
+                                <button class="increment-btn" data-target="maxSize">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="preBlur-group">
+                            <label for="preBlur">
+                                Pre-Blur (pixels) <span class="help-icon" data-tooltip="Blur image before halftoning to prevent moiré/aliasing artifacts with high-frequency patterns">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="preBlur">-</button>
+                                <input type="number" id="preBlur" min="0" max="20" step="0.5" value="0">
+                                <button class="increment-btn" data-target="preBlur">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="maxDepth-group">
+                            <label for="maxDepth">
+                                Max Depth (mm) <span class="help-icon" data-tooltip="Maximum cut depth in darkest areas">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="maxDepth">-</button>
+                                <input type="number" id="maxDepth" min="0.1" max="10" step="0.1" value="2">
+                                <button class="increment-btn" data-target="maxDepth">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="wavelength-group">
+                            <label for="wavelength">
+                                Wavelength (mm) <span class="help-icon" data-tooltip="Creates wavy lines (0 = straight lines)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="wavelength">-</button>
+                                <input type="number" id="wavelength" min="0" max="50" step="1" value="0">
+                                <button class="increment-btn" data-target="wavelength">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="amplitude-group">
+                            <label for="amplitude">
+                                Amplitude (mm) <span class="help-icon" data-tooltip="Wave height for wavelength effect">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="amplitude">-</button>
+                                <input type="number" id="amplitude" min="0" max="10" step="0.1" value="0">
+                                <button class="increment-btn" data-target="amplitude">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="patternType-group">
+                            <label for="patternType">
+                                Pattern Type <span class="help-icon" data-tooltip="Different pattern styles for halftone effect">?</span>
+                            </label>
+                            <select id="patternType">
+                                <option value="lines" selected>Lines</option>
+                                <option value="squares">Squares</option>
+                                <option value="dots">Dots</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group compact full-width" id="angleControl">
+                            <label for="angle">
+                                Angle (degrees) <span class="help-icon" data-tooltip="0° = horizontal, 45° = diagonal, 90° = vertical">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="angle">-</button>
+                                <input type="number" id="angle" min="0" max="180" step="5" value="45">
+                                <button class="increment-btn" data-target="angle">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="crosshatchAngle2-group" style="display: none;">
+                            <label for="crosshatchAngle2">
+                                Crosshatch Angle 2 (degrees) <span class="help-icon" data-tooltip="Second line angle for cross-hatching">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="crosshatchAngle2">-</button>
+                                <input type="number" id="crosshatchAngle2" min="0" max="180" step="5" value="135">
+                                <button class="increment-btn" data-target="crosshatchAngle2">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <p class="help-text">Border margin around the image</p>
             </div>
 
-            <div class="control-group" id="spacing-group">
-                <label for="spacing">
-                    Spacing (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="spacing">-</button>
-                    <input type="number" id="spacing" min="0.05" max="10" step="0.05" value="1">
-                    <button class="increment-btn" data-target="spacing">+</button>
+            <!-- Group 4: Image Adjustments -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Image Adjustments</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="image-adjustments-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact" id="brightness-group">
+                            <label for="brightness">
+                                Brightness <span class="help-icon" data-tooltip="Adjust overall brightness (-100 to +100)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="brightness">-</button>
+                                <input type="number" id="brightness" min="-100" max="100" step="5" value="0">
+                                <button class="increment-btn" data-target="brightness">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="contrast-group">
+                            <label for="contrast">
+                                Contrast <span class="help-icon" data-tooltip="Adjust image contrast (-100 to +100)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="contrast">-</button>
+                                <input type="number" id="contrast" min="-100" max="100" step="5" value="0">
+                                <button class="increment-btn" data-target="contrast">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="gamma-group">
+                            <label for="gamma">
+                                Gamma <span class="help-icon" data-tooltip="Adjust midtones (0.1-3.0, 1.0=neutral)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="gamma">-</button>
+                                <input type="number" id="gamma" min="0.1" max="3.0" step="0.1" value="1.0">
+                                <button class="increment-btn" data-target="gamma">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="shadows-group">
+                            <label for="shadows">
+                                Shadows (Levels) <span class="help-icon" data-tooltip="Dark area threshold (0-255)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="shadows">-</button>
+                                <input type="number" id="shadows" min="0" max="255" step="5" value="0">
+                                <button class="increment-btn" data-target="shadows">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="midtones-group">
+                            <label for="midtones">
+                                Midtones (Levels) <span class="help-icon" data-tooltip="Midtone adjustment (0.1-10.0, 1.0=neutral)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="midtones">-</button>
+                                <input type="number" id="midtones" min="0.1" max="10.0" step="0.1" value="1.0">
+                                <button class="increment-btn" data-target="midtones">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="highlights-group">
+                            <label for="highlights">
+                                Highlights (Levels) <span class="help-icon" data-tooltip="Bright area threshold (0-255)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="highlights">-</button>
+                                <input type="number" id="highlights" min="0" max="255" step="5" value="255">
+                                <button class="increment-btn" data-target="highlights">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="autoAdjust-group">
+                            <button id="autoAdjustButton" class="auto-adjust-button">Auto Adjust <span class="help-icon" data-tooltip="Automatically optimize brightness and contrast">?</span></button>
+                        </div>
+
+                        <div class="control-group compact full-width" id="invert-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="invertToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Invert Image</span>
+                                <span class="help-icon" data-tooltip="Swap light and dark areas">?</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
-                <p class="help-text">Distance between lines/elements</p>
             </div>
 
-            <div class="control-group" id="minSize-group">
-                <label for="minSize">
-                    Min Size (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="minSize">-</button>
-                    <input type="number" id="minSize" min="0" max="5" step="0.1" value="0">
-                    <button class="increment-btn" data-target="minSize">+</button>
-                </div>
-                <p class="help-text">Minimum line/element width in light areas</p>
-            </div>
-
-            <div class="control-group" id="maxSize-group">
-                <label for="maxSize">
-                    Max Size (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="maxSize">-</button>
-                    <input type="number" id="maxSize" min="0" max="10" step="0.1" value="2">
-                    <button class="increment-btn" data-target="maxSize">+</button>
-                </div>
-                <p class="help-text">Maximum line/element width in dark areas (can exceed spacing for overlap)</p>
-            </div>
-
-            <div class="control-group" id="preBlur-group">
-                <label for="preBlur">
-                    Pre-Blur (pixels):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="preBlur">-</button>
-                    <input type="number" id="preBlur" min="0" max="20" step="0.5" value="0">
-                    <button class="increment-btn" data-target="preBlur">+</button>
-                </div>
-                <p class="help-text">Blur image before halftoning to prevent moiré/aliasing artifacts with high-frequency patterns</p>
-            </div>
-
-            <div class="control-group" id="patternType-group">
-                <label for="patternType">
-                    Pattern Type:
-                </label>
-                <select id="patternType">
-                    <option value="lines" selected>Lines</option>
-                    <option value="squares">Squares</option>
-                    <option value="dots">Dots</option>
-                </select>
-                <p class="help-text">Different pattern styles for halftone effect</p>
-            </div>
-
-            <div class="control-group" id="crosshatchAngle2-group" style="display: none;">
-                <label for="crosshatchAngle2">
-                    Second Angle (degrees):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="crosshatchAngle2">-</button>
-                    <input type="number" id="crosshatchAngle2" min="0" max="180" step="5" value="135">
-                    <button class="increment-btn" data-target="crosshatchAngle2">+</button>
-                </div>
-                <p class="help-text">Second line angle for cross-hatching</p>
-            </div>
-
-            <div class="control-group" id="brightness-group">
-                <label for="brightness">
-                    Brightness:
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="brightness">-</button>
-                    <input type="number" id="brightness" min="-100" max="100" step="5" value="0">
-                    <button class="increment-btn" data-target="brightness">+</button>
-                </div>
-                <p class="help-text">Adjust overall brightness (-100 to +100)</p>
-            </div>
-
-            <div class="control-group" id="contrast-group">
-                <label for="contrast">
-                    Contrast:
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="contrast">-</button>
-                    <input type="number" id="contrast" min="-100" max="100" step="5" value="0">
-                    <button class="increment-btn" data-target="contrast">+</button>
-                </div>
-                <p class="help-text">Adjust image contrast (-100 to +100)</p>
-            </div>
-
-            <div class="control-group" id="gamma-group">
-                <label for="gamma">
-                    Gamma:
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="gamma">-</button>
-                    <input type="number" id="gamma" min="0.1" max="3.0" step="0.1" value="1.0">
-                    <button class="increment-btn" data-target="gamma">+</button>
-                </div>
-                <p class="help-text">Adjust midtones (0.1-3.0, 1.0=neutral)</p>
-            </div>
-
-            <div class="control-group" id="shadows-group">
-                <label for="shadows">
-                    Shadows (Levels):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="shadows">-</button>
-                    <input type="number" id="shadows" min="0" max="255" step="5" value="0">
-                    <button class="increment-btn" data-target="shadows">+</button>
-                </div>
-                <p class="help-text">Dark area threshold (0-255)</p>
-            </div>
-
-            <div class="control-group" id="midtones-group">
-                <label for="midtones">
-                    Midtones (Levels):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="midtones">-</button>
-                    <input type="number" id="midtones" min="0.1" max="10.0" step="0.1" value="1.0">
-                    <button class="increment-btn" data-target="midtones">+</button>
-                </div>
-                <p class="help-text">Midtone adjustment (0.1-10.0, 1.0=neutral)</p>
-            </div>
-
-            <div class="control-group" id="highlights-group">
-                <label for="highlights">
-                    Highlights (Levels):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="highlights">-</button>
-                    <input type="number" id="highlights" min="0" max="255" step="5" value="255">
-                    <button class="increment-btn" data-target="highlights">+</button>
-                </div>
-                <p class="help-text">Bright area threshold (0-255)</p>
-            </div>
-
-            <div class="control-group" id="autoAdjust-group">
-                <button id="autoAdjustButton" class="auto-adjust-button">Auto Adjust</button>
-                <p class="help-text">Automatically optimize brightness and contrast</p>
-            </div>
-
-            <div class="control-group" id="invert-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="invertToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Invert Image</span>
-                </label>
-                <p class="help-text">Swap light and dark areas</p>
-            </div>
-
-            <div class="control-group" id="maxDepth-group">
-                <label for="maxDepth">
-                    Max Depth (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="maxDepth">-</button>
-                    <input type="number" id="maxDepth" min="0.1" max="10" step="0.1" value="2">
-                    <button class="increment-btn" data-target="maxDepth">+</button>
-                </div>
-                <p class="help-text">Maximum cut depth in darkest areas</p>
-            </div>
-
-            <div class="control-group" id="angleControl">
-                <label for="angle">
-                    Angle (degrees):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="angle">-</button>
-                    <input type="number" id="angle" min="0" max="180" step="5" value="45">
-                    <button class="increment-btn" data-target="angle">+</button>
-                </div>
-                <p class="help-text">0° = horizontal, 45° = diagonal, 90° = vertical</p>
-            </div>
-
-            <div class="control-group" id="wavelength-group">
-                <label for="wavelength">
-                    Wavelength (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="wavelength">-</button>
-                    <input type="number" id="wavelength" min="0" max="50" step="1" value="0">
-                    <button class="increment-btn" data-target="wavelength">+</button>
-                </div>
-                <p class="help-text">Creates wavy lines (0 = straight lines)</p>
-            </div>
-
-            <div class="control-group" id="amplitude-group">
-                <label for="amplitude">
-                    Amplitude (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="amplitude">-</button>
-                    <input type="number" id="amplitude" min="0" max="10" step="0.1" value="0">
-                    <button class="increment-btn" data-target="amplitude">+</button>
-                </div>
-                <p class="help-text">Wave height for wavelength effect</p>
-            </div>
                 </div>
                     </div>
                     <!-- End Halftone Settings Tab -->
@@ -327,114 +353,131 @@
                     <div id="advanced-tab" class="tab-content">
                 <div class="controls">
 
-            <!-- Default Presets -->
-            <div class="control-group">
-                <label>Default Presets:</label>
-                <button id="setDefaultPresetsButton" class="preset-button full-width-button" title="Set default presets to auto-load on startup">Set Default Presets</button>
-                <p class="help-text">Choose presets to automatically load when you open the app</p>
-            </div>
+            <!-- Group 1: Presets & Settings -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Presets & Settings</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="presets-settings-group">
+                    <!-- Default Presets -->
+                    <div class="control-group">
+                        <label>Default Presets:</label>
+                        <button id="setDefaultPresetsButton" class="preset-button full-width-button" title="Set default presets to auto-load on startup">Set Default Presets</button>
+                        <p class="help-text">Choose presets to automatically load when you open the app</p>
+                    </div>
 
-            <!-- Preset Export/Import -->
-            <div class="control-group">
-                <label>Export/Import Presets:</label>
-                <div style="display: flex; gap: 10px;">
-                    <button id="exportPresetButton" class="preset-button" style="flex: 1;" title="Export preset to file">Export Preset</button>
-                    <button id="importPresetButton" class="preset-button" style="flex: 1;" title="Import preset from file">Import Preset</button>
+                    <!-- Preset Export/Import -->
+                    <div class="control-group">
+                        <label>Export/Import Presets:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="exportPresetButton" class="preset-button" style="flex: 1;" title="Export preset to file">Export Preset</button>
+                            <button id="importPresetButton" class="preset-button" style="flex: 1;" title="Import preset from file">Import Preset</button>
+                        </div>
+                        <p class="help-text">Share presets between computers or with others</p>
+                    </div>
+
+                    <!-- Theme Toggle -->
+                    <div class="control-group">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="themeToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>Dark Mode</span>
+                        </label>
+                        <p class="help-text">Toggle between light and dark themes</p>
+                    </div>
+
+                    <div class="control-group" id="upscale-group">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="upscaleToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>4x Image Upscaling</span>
+                        </label>
+                        <p class="help-text">Improves detail quality (slower processing)</p>
+                    </div>
                 </div>
-                <p class="help-text">Share presets between computers or with others</p>
             </div>
 
+            <!-- Group 2: Advanced Pattern Options -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Advanced Pattern Options</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="advanced-pattern-options-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact" id="centerOffsetX-group">
+                            <label for="centerOffsetX">
+                                Center Offset X (mm) <span class="help-icon" data-tooltip="Shift pattern center horizontally">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="centerOffsetX">-</button>
+                                <input type="number" id="centerOffsetX" min="-100" max="100" step="0.1" value="0">
+                                <button class="increment-btn" data-target="centerOffsetX">+</button>
+                            </div>
+                        </div>
 
-            <!-- Theme Toggle -->
-            <div class="control-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="themeToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Dark Mode</span>
-                </label>
-                <p class="help-text">Toggle between light and dark themes</p>
-            </div>
+                        <div class="control-group compact" id="centerOffsetY-group">
+                            <label for="centerOffsetY">
+                                Center Offset Y (mm) <span class="help-icon" data-tooltip="Shift pattern center vertically">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="centerOffsetY">-</button>
+                                <input type="number" id="centerOffsetY" min="-100" max="100" step="0.1" value="0">
+                                <button class="increment-btn" data-target="centerOffsetY">+</button>
+                            </div>
+                        </div>
 
-            <div class="control-group" id="upscale-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="upscaleToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>4x Image Upscaling</span>
-                </label>
-                <p class="help-text">Improves detail quality (slower processing)</p>
-            </div>
+                        <div class="control-group compact full-width" id="offsetOddLines-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="offsetOddLinesToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Offset Odd Lines</span>
+                                <span class="help-icon" data-tooltip="Stagger alternating lines (brick pattern effect)">?</span>
+                            </label>
+                        </div>
 
-            <div class="control-group" id="centerOffsetX-group">
-                <label for="centerOffsetX">
-                    Center Offset X (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="centerOffsetX">-</button>
-                    <input type="number" id="centerOffsetX" min="-100" max="100" step="0.1" value="0">
-                    <button class="increment-btn" data-target="centerOffsetX">+</button>
+                        <div class="control-group compact full-width" id="darkBoost-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="darkBoostToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Dark Boost</span>
+                                <span class="help-icon" data-tooltip="Enhance contrast in dark areas">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width" id="fixedSizes-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="fixedSizesToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Fixed Sizes</span>
+                                <span class="help-icon" data-tooltip="Use maximum size for all elements">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width" id="outputUnits-group">
+                            <label for="outputUnits">
+                                G-Code Output Units <span class="help-icon" data-tooltip="Units for generated G-code (G21 for mm, G20 for inches)">?</span>
+                            </label>
+                            <select id="outputUnits">
+                                <option value="mm" selected>Metric (mm)</option>
+                                <option value="inch">Imperial (inches)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
-                <p class="help-text">Shift pattern center horizontally</p>
             </div>
 
-            <div class="control-group" id="centerOffsetY-group">
-                <label for="centerOffsetY">
-                    Center Offset Y (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="centerOffsetY">-</button>
-                    <input type="number" id="centerOffsetY" min="-100" max="100" step="0.1" value="0">
-                    <button class="increment-btn" data-target="centerOffsetY">+</button>
-                </div>
-                <p class="help-text">Shift pattern center vertically</p>
-            </div>
-
-            <div class="control-group" id="offsetOddLines-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="offsetOddLinesToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Offset Odd Lines</span>
-                </label>
-                <p class="help-text">Stagger alternating lines (brick pattern effect)</p>
-            </div>
-
-            <div class="control-group" id="darkBoost-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="darkBoostToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Dark Boost</span>
-                </label>
-                <p class="help-text">Enhance contrast in dark areas</p>
-            </div>
-
-            <div class="control-group" id="fixedSizes-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="fixedSizesToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Fixed Sizes</span>
-                </label>
-                <p class="help-text">Use maximum size for all elements</p>
-            </div>
-
-            <div class="control-group" id="outputUnits-group">
-                <label for="outputUnits">
-                    G-Code Output Units:
-                </label>
-                <select id="outputUnits">
-                    <option value="mm" selected>Metric (mm)</option>
-                    <option value="inch">Imperial (inches)</option>
-                </select>
-                <p class="help-text">Units for generated G-code (G21 for mm, G20 for inches)</p>
-            </div>
                 </div>
                     </div>
                     <!-- End Advanced Settings Tab -->
@@ -453,384 +496,444 @@
                 <p class="help-text">Save CNC machine and toolpath settings</p>
             </div>
 
-            <div class="control-group" id="multiPass-group">
-                <label for="multiPassCount">
-                    Halftone Passes:
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="multiPassCount">-</button>
-                    <input type="number" id="multiPassCount" min="1" max="5" step="1" value="1">
-                    <button class="increment-btn" data-target="multiPassCount">+</button>
-                </div>
-                <p class="help-text">Number of times to cut the halftone pattern (for cleaner results)</p>
-            </div>
+            <!-- Group 1: Tool Settings -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Tool Settings</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="tool-settings-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact" id="vbitAngle-group">
+                            <label for="vbitAngle">
+                                V-bit Angle <span class="help-icon" data-tooltip="Must match your actual V-bit tool">?</span>
+                            </label>
+                            <select id="vbitAngle">
+                                <option value="30">30°</option>
+                                <option value="60">60°</option>
+                                <option value="90" selected>90°</option>
+                                <option value="120">120°</option>
+                            </select>
+                        </div>
 
-            <div class="control-group" id="depthPerPass-group">
-                <label for="depthPerPass">
-                    Depth Increment Per Pass (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="depthPerPass">-</button>
-                    <input type="number" id="depthPerPass" min="0.01" max="1.0" step="0.05" value="0.1">
-                    <button class="increment-btn" data-target="depthPerPass">+</button>
-                </div>
-                <p class="help-text">Depth increment per pass - e.g., with 2 passes, the final pass cuts 0.1mm deeper than the previous pass</p>
-            </div>
+                        <div class="control-group compact" id="spindleSpeed-group">
+                            <label for="spindleSpeed">
+                                Spindle Speed (RPM) <span class="help-icon" data-tooltip="Router/spindle rotation speed">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="spindleSpeed">-</button>
+                                <input type="number" id="spindleSpeed" min="1000" max="30000" step="100" value="12000">
+                                <button class="increment-btn" data-target="spindleSpeed">+</button>
+                            </div>
+                        </div>
 
-            <div class="control-group" id="materialThickness-group">
-                <label for="materialThickness">
-                    Material Thickness (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="materialThickness">-</button>
-                    <input type="number" id="materialThickness" min="0.1" max="100" step="0.1" value="10">
-                    <button class="increment-btn" data-target="materialThickness">+</button>
-                </div>
-                <p class="help-text">Warns if max depth exceeds thickness</p>
-            </div>
+                        <div class="control-group compact" id="cuttingFeedRate-group">
+                            <label for="cuttingFeedRate">
+                                Cutting Feed Rate (mm/min) <span class="help-icon" data-tooltip="Speed during actual cutting operations">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="cuttingFeedRate">-</button>
+                                <input type="number" id="cuttingFeedRate" min="50" max="3000" step="50" value="800">
+                                <button class="increment-btn" data-target="cuttingFeedRate">+</button>
+                            </div>
+                        </div>
 
-            <div class="control-group" id="safeHeight-group">
-                <label for="safeHeight">
-                    Safe Z Height (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="safeHeight">-</button>
-                    <input type="number" id="safeHeight" min="1" max="100" step="1" value="50">
-                    <button class="increment-btn" data-target="safeHeight">+</button>
-                </div>
-                <p class="help-text">Clearance height for rapid moves</p>
-            </div>
-
-            <div class="control-group" id="spindleSpeed-group">
-                <label for="spindleSpeed">
-                    Spindle Speed (RPM):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="spindleSpeed">-</button>
-                    <input type="number" id="spindleSpeed" min="1000" max="30000" step="100" value="12000">
-                    <button class="increment-btn" data-target="spindleSpeed">+</button>
-                </div>
-                <p class="help-text">Router/spindle rotation speed</p>
-            </div>
-
-            <div class="control-group" id="cuttingFeedRate-group">
-                <label for="cuttingFeedRate">
-                    Cutting Feed Rate (mm/min):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="cuttingFeedRate">-</button>
-                    <input type="number" id="cuttingFeedRate" min="50" max="3000" step="50" value="800">
-                    <button class="increment-btn" data-target="cuttingFeedRate">+</button>
-                </div>
-                <p class="help-text">Speed during actual cutting operations</p>
-            </div>
-
-            <div class="control-group" id="plungeFeedRate-group">
-                <label for="plungeFeedRate">
-                    Plunge Feed Rate (mm/min):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="plungeFeedRate">-</button>
-                    <input type="number" id="plungeFeedRate" min="50" max="1000" step="50" value="300">
-                    <button class="increment-btn" data-target="plungeFeedRate">+</button>
-                </div>
-                <p class="help-text">Speed when moving vertically into material</p>
-            </div>
-
-            <div class="control-group" id="vbitAngle-group">
-                <label for="vbitAngle">
-                    V-bit Angle:
-                </label>
-                <select id="vbitAngle">
-                    <option value="30">30°</option>
-                    <option value="60">60°</option>
-                    <option value="90" selected>90°</option>
-                    <option value="120">120°</option>
-                </select>
-                <p class="help-text">Must match your actual V-bit tool</p>
-            </div>
-
-            <div class="control-group">
-                <label for="endPositionSelect">
-                    End Position:
-                </label>
-                <select id="endPositionSelect">
-                    <option value="zero" selected>Return to Zero (G0 X0 Y0)</option>
-                    <option value="home">Return to Home (G28)</option>
-                </select>
-                <p class="help-text">Where to move XY after job completes</p>
-            </div>
-
-            <div class="control-group" id="toolChange-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="toolChangeToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Tool Changer</span>
-                </label>
-                <p class="help-text">Enable automatic tool changes for multi-tool operations</p>
-            </div>
-
-            <div class="control-group sub-option" id="vbitToolNumber-group" style="display: none;">
-                <label for="vbitToolNumber">
-                    V-bit Tool Number:
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="vbitToolNumber">-</button>
-                    <input type="number" id="vbitToolNumber" min="1" max="99" step="1" value="1">
-                    <button class="increment-btn" data-target="vbitToolNumber">+</button>
-                </div>
-                <p class="help-text">Tool number for V-bit engraving</p>
-            </div>
-
-            <div class="control-group sub-option" id="boundaryToolNumber-group" style="display: none;">
-                <label for="boundaryToolNumber">
-                    Boundary Frame Tool Number:
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="boundaryToolNumber">-</button>
-                    <input type="number" id="boundaryToolNumber" min="1" max="99" step="1" value="2">
-                    <button class="increment-btn" data-target="boundaryToolNumber">+</button>
-                </div>
-                <p class="help-text">Tool number for cutting boundary frame</p>
-            </div>
-
-            <div class="control-group" id="ramping-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="rampingToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Z-Axis Ramping</span>
-                </label>
-                <p class="help-text">Gradual Z entry instead of plunging</p>
-            </div>
-
-            <div class="control-group sub-option" id="rampDistance-group" style="display: none;">
-                <label for="rampDistance">
-                    Ramp Distance (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="rampDistance">-</button>
-                    <input type="number" id="rampDistance" min="0.5" max="10" step="0.5" value="2">
-                    <button class="increment-btn" data-target="rampDistance">+</button>
-                </div>
-                <p class="help-text">Horizontal distance for Z ramping</p>
-            </div>
-
-            <div class="control-group" id="boundary-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="boundaryToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Cut Boundary Frame</span>
-                </label>
-                <p class="help-text">Cut rectangle at border edge (uses Border setting)</p>
-            </div>
-
-            <div class="control-group sub-option" id="boundaryToolSize-group" style="display: none;">
-                <label for="boundaryToolSize">
-                    Boundary Frame Bit Size (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="boundaryToolSize">-</button>
-                    <input type="number" id="boundaryToolSize" min="0.1" max="25" step="0.1" value="3.175">
-                    <button class="increment-btn" data-target="boundaryToolSize">+</button>
-                </div>
-                <p class="help-text">Diameter of bit used for boundary frame</p>
-            </div>
-
-            <div class="control-group sub-option" id="boundaryPassDepth-group" style="display: none;">
-                <label for="boundaryPassDepth">
-                    Boundary Pass Depth (mm):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="boundaryPassDepth">-</button>
-                    <input type="number" id="boundaryPassDepth" min="0.1" max="10" step="0.1" value="0.5">
-                    <button class="increment-btn" data-target="boundaryPassDepth">+</button>
-                </div>
-                <p class="help-text">Depth per pass (cuts to material thickness in multiple passes)</p>
-            </div>
-
-            <div class="control-group sub-option" id="borderCuttingFeedRate-group" style="display: none;">
-                <label for="borderCuttingFeedRate">
-                    Border Cutting Feed Rate (mm/min):
-                </label>
-                <div class="input-with-buttons">
-                    <button class="decrement-btn" data-target="borderCuttingFeedRate">-</button>
-                    <input type="number" id="borderCuttingFeedRate" min="50" max="3000" step="50" value="800">
-                    <button class="increment-btn" data-target="borderCuttingFeedRate">+</button>
-                </div>
-                <p class="help-text">Speed when cutting boundary frame (uses main rate if not specified)</p>
-            </div>
-
-            <div class="control-group sub-option" id="includeBoundaryInGcode-group" style="display: none;">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="includeBoundaryInGcodeToggle" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Include Boundary in Main G-code</span>
-                </label>
-                <p class="help-text">Uncheck to generate separate boundary frame file</p>
-            </div>
-
-            <div class="control-group" id="lineNumbers-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="lineNumbersToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Include Line Numbers</span>
-                </label>
-                <p class="help-text">Add line numbers to G-code (useful for debugging)</p>
-            </div>
-
-            <div class="control-group" id="optimizeToolpath-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="optimizeToolpathToggle" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Optimize Toolpath</span>
-                </label>
-                <p class="help-text">Minimize rapid moves (recommended)</p>
-            </div>
-
-            <div class="control-group" id="bidirectional-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="bidirectionalToggle" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Bidirectional Engraving</span>
-                </label>
-                <p class="help-text">Alternate cutting direction to reduce rapid moves</p>
-            </div>
-
-            <div class="control-group" id="splitFiles-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="splitFilesToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Split Into Multiple Files</span>
-                </label>
-                <p class="help-text">Split large G-code into multiple files with headers/footers</p>
-            </div>
-
-            <div class="control-group sub-option" id="maxLinesPerFile-group" style="display: none;">
-                <label for="maxLinesPerFile">
-                    Max Lines Per File:
-                </label>
-                <div class="input-group">
-                    <button class="decrement-btn" data-target="maxLinesPerFile">-</button>
-                    <input type="number" id="maxLinesPerFile" min="1000" max="1000000" step="1000" value="50000">
-                    <button class="increment-btn" data-target="maxLinesPerFile">+</button>
-                </div>
-                <p class="help-text">Maximum lines of G-code per file (each file gets complete header/footer)</p>
-            </div>
-
-            <div class="control-group" id="plotter-group">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="plotterModeToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Plotter Mode</span>
-                </label>
-                <p class="help-text">Generate drawing commands instead of cutting (pen up/down)</p>
-            </div>
-
-            <div class="control-group" id="plotterLineWidthMethod-group" style="display: none;">
-                <label for="plotterLineWidthMethod">
-                    Line Width Method:
-                </label>
-                <select id="plotterLineWidthMethod">
-                    <option value="pressure" selected>Pressure-Based (Z-axis)</option>
-                    <option value="setPenSize">Set Pen Size</option>
-                </select>
-                <p class="help-text">How to vary line width for different brightness levels</p>
-            </div>
-
-            <div class="control-group sub-option" id="plotterPressureCalibration-group" style="display: none;">
-                <label>Pressure Calibration:</label>
-                <button id="calibratePressureButton" class="auto-adjust-button" style="width: 100%; margin-bottom: 10px;">🔧 Open Calibration Guide</button>
-                <p class="help-text">Click to see step-by-step calibration instructions</p>
-            </div>
-
-            <div class="control-group sub-option" id="plotterPressureMin-group" style="display: none;">
-                <label for="plotterPressureMin">
-                    Lightest Pressure (Z):
-                </label>
-                <div class="input-group">
-                    <button class="decrement-btn" data-target="plotterPressureMin">-</button>
-                    <input type="number" id="plotterPressureMin" min="-10" max="5" step="0.1" value="0">
-                    <button class="increment-btn" data-target="plotterPressureMin">+</button>
+                        <div class="control-group compact" id="plungeFeedRate-group">
+                            <label for="plungeFeedRate">
+                                Plunge Feed Rate (mm/min) <span class="help-icon" data-tooltip="Speed when moving vertically into material">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="plungeFeedRate">-</button>
+                                <input type="number" id="plungeFeedRate" min="50" max="1000" step="50" value="300">
+                                <button class="increment-btn" data-target="plungeFeedRate">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="control-group sub-option" id="plotterLineWidthLight-group" style="display: none;">
-                <label for="plotterLineWidthLight">
-                    Line Width at Light Pressure (mm):
-                </label>
-                <div class="input-group">
-                    <button class="decrement-btn" data-target="plotterLineWidthLight">-</button>
-                    <input type="number" id="plotterLineWidthLight" min="0.1" max="5" step="0.1" value="0.3">
-                    <button class="increment-btn" data-target="plotterLineWidthLight">+</button>
+            <!-- Group 2: Work Positioning -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Work Positioning</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="work-positioning-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact full-width" id="wcs-group">
+                            <label for="workZeroPosition">
+                                Work Zero Position <span class="help-icon" data-tooltip="Where you set X0 Y0 on your workpiece">?</span>
+                            </label>
+                            <select id="workZeroPosition">
+                                <option value="bottom-left" selected>Bottom-Left Corner</option>
+                                <option value="bottom-right">Bottom-Right Corner</option>
+                                <option value="center">Center</option>
+                                <option value="top-left">Top-Left Corner</option>
+                                <option value="top-right">Top-Right Corner</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group compact" id="safeHeight-group">
+                            <label for="safeHeight">
+                                Safe Z Height (mm) <span class="help-icon" data-tooltip="Clearance height for rapid moves">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="safeHeight">-</button>
+                                <input type="number" id="safeHeight" min="1" max="100" step="1" value="50">
+                                <button class="increment-btn" data-target="safeHeight">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="control-group sub-option" id="plotterPressureMax-group" style="display: none;">
-                <label for="plotterPressureMax">
-                    Heaviest Pressure (Z):
-                </label>
-                <div class="input-group">
-                    <button class="decrement-btn" data-target="plotterPressureMax">-</button>
-                    <input type="number" id="plotterPressureMax" min="-10" max="5" step="0.1" value="-0.5">
-                    <button class="increment-btn" data-target="plotterPressureMax">+</button>
+            <!-- Group 3: Multi-Pass Settings -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Multi-Pass Settings</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="multi-pass-settings-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact" id="multiPass-group">
+                            <label for="multiPassCount">
+                                Halftone Passes <span class="help-icon" data-tooltip="Number of times to cut the halftone pattern (for cleaner results)">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="multiPassCount">-</button>
+                                <input type="number" id="multiPassCount" min="1" max="5" step="1" value="1">
+                                <button class="increment-btn" data-target="multiPassCount">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="depthPerPass-group">
+                            <label for="depthPerPass">
+                                Depth Increment (mm) <span class="help-icon" data-tooltip="Depth increment per pass - e.g., with 2 passes, the final pass cuts 0.1mm deeper than the previous pass">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="depthPerPass">-</button>
+                                <input type="number" id="depthPerPass" min="0.01" max="1.0" step="0.05" value="0.1">
+                                <button class="increment-btn" data-target="depthPerPass">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="materialThickness-group">
+                            <label for="materialThickness">
+                                Material Thickness (mm) <span class="help-icon" data-tooltip="Warns if max depth exceeds thickness">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="materialThickness">-</button>
+                                <input type="number" id="materialThickness" min="0.1" max="100" step="0.1" value="10">
+                                <button class="increment-btn" data-target="materialThickness">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="control-group sub-option" id="plotterLineWidthHeavy-group" style="display: none;">
-                <label for="plotterLineWidthHeavy">
-                    Line Width at Heavy Pressure (mm):
-                </label>
-                <div class="input-group">
-                    <button class="decrement-btn" data-target="plotterLineWidthHeavy">-</button>
-                    <input type="number" id="plotterLineWidthHeavy" min="0.1" max="10" step="0.1" value="1.0">
-                    <button class="increment-btn" data-target="plotterLineWidthHeavy">+</button>
+            <!-- Group 4: Boundary & Tool Change -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Boundary & Tool Change</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="boundary-tool-change-group">
+                    <div class="control-group" id="boundary-group">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="boundaryToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>Cut Boundary Frame</span>
+                        </label>
+                        <p class="help-text">Cut rectangle at border edge (uses Border setting)</p>
+                    </div>
+
+                    <div class="control-group sub-option" id="includeBoundaryInGcode-group" style="display: none;">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="includeBoundaryInGcodeToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>Include Boundary in Main G-code</span>
+                        </label>
+                        <p class="help-text">Uncheck to generate separate boundary frame file</p>
+                    </div>
+
+                    <div class="control-group" id="toolChange-group">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toolChangeToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>Tool Changer</span>
+                        </label>
+                        <p class="help-text">Enable automatic tool changes for multi-tool operations</p>
+                    </div>
+
+                    <div class="control-group sub-option" id="vbitToolNumber-group" style="display: none;">
+                        <label for="vbitToolNumber">
+                            V-bit Tool Number:
+                        </label>
+                        <div class="input-with-buttons">
+                            <button class="decrement-btn" data-target="vbitToolNumber">-</button>
+                            <input type="number" id="vbitToolNumber" min="1" max="99" step="1" value="1">
+                            <button class="increment-btn" data-target="vbitToolNumber">+</button>
+                        </div>
+                        <p class="help-text">Tool number for V-bit engraving</p>
+                    </div>
+
+                    <div class="control-group sub-option" id="boundaryToolNumber-group" style="display: none;">
+                        <label for="boundaryToolNumber">
+                            Boundary Frame Tool Number:
+                        </label>
+                        <div class="input-with-buttons">
+                            <button class="decrement-btn" data-target="boundaryToolNumber">-</button>
+                            <input type="number" id="boundaryToolNumber" min="1" max="99" step="1" value="2">
+                            <button class="increment-btn" data-target="boundaryToolNumber">+</button>
+                        </div>
+                        <p class="help-text">Tool number for cutting boundary frame</p>
+                    </div>
+
+                    <div class="control-group sub-option" id="boundaryToolSize-group" style="display: none;">
+                        <label for="boundaryToolSize">
+                            Boundary Frame Bit Size (mm):
+                        </label>
+                        <div class="input-with-buttons">
+                            <button class="decrement-btn" data-target="boundaryToolSize">-</button>
+                            <input type="number" id="boundaryToolSize" min="0.1" max="25" step="0.1" value="3.175">
+                            <button class="increment-btn" data-target="boundaryToolSize">+</button>
+                        </div>
+                        <p class="help-text">Diameter of bit used for boundary frame</p>
+                    </div>
+
+                    <div class="control-group sub-option" id="boundaryPassDepth-group" style="display: none;">
+                        <label for="boundaryPassDepth">
+                            Boundary Pass Depth (mm):
+                        </label>
+                        <div class="input-with-buttons">
+                            <button class="decrement-btn" data-target="boundaryPassDepth">-</button>
+                            <input type="number" id="boundaryPassDepth" min="0.1" max="10" step="0.1" value="0.5">
+                            <button class="increment-btn" data-target="boundaryPassDepth">+</button>
+                        </div>
+                        <p class="help-text">Depth per pass (cuts to material thickness in multiple passes)</p>
+                    </div>
+
+                    <div class="control-group sub-option" id="borderCuttingFeedRate-group" style="display: none;">
+                        <label for="borderCuttingFeedRate">
+                            Border Cutting Feed Rate (mm/min):
+                        </label>
+                        <div class="input-with-buttons">
+                            <button class="decrement-btn" data-target="borderCuttingFeedRate">-</button>
+                            <input type="number" id="borderCuttingFeedRate" min="50" max="3000" step="50" value="800">
+                            <button class="increment-btn" data-target="borderCuttingFeedRate">+</button>
+                        </div>
+                        <p class="help-text">Speed when cutting boundary frame (uses main rate if not specified)</p>
+                    </div>
                 </div>
-                <p class="help-text">Maximum line width your pen produces at full pressure. For best results, match this to your spacing value to avoid gaps or overlap.<br><span style="color: #ff4444;">(Can't be smaller than the Max Size)</span></p>
             </div>
 
-            <div class="control-group sub-option" id="plotterPenSize-group" style="display: none;">
-                <label for="plotterPenSize">
-                    Pen Size (mm):
-                </label>
-                <div class="input-group">
-                    <button class="decrement-btn" data-target="plotterPenSize">-</button>
-                    <input type="number" id="plotterPenSize" min="0.1" max="5" step="0.1" value="0.5">
-                    <button class="increment-btn" data-target="plotterPenSize">+</button>
+            <!-- Group 5: Toolpath Optimization -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Toolpath Optimization</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="toolpath-optimization-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact full-width" id="optimizeToolpath-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="optimizeToolpathToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Optimize Toolpath</span>
+                                <span class="help-icon" data-tooltip="Minimize rapid moves (recommended)">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width" id="bidirectional-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="bidirectionalToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Bidirectional Engraving</span>
+                                <span class="help-icon" data-tooltip="Alternate cutting direction to reduce rapid moves">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width" id="ramping-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="rampingToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Z-Axis Ramping</span>
+                                <span class="help-icon" data-tooltip="Gradual Z entry instead of plunging">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="rampDistance-group" style="display: none;">
+                            <label for="rampDistance">
+                                Ramp Distance (mm) <span class="help-icon" data-tooltip="Horizontal distance for Z ramping">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="rampDistance">-</button>
+                                <input type="number" id="rampDistance" min="0.5" max="10" step="0.5" value="2">
+                                <button class="increment-btn" data-target="rampDistance">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <p class="help-text">Fixed pen size in mm. System generates offset paths to fill shapes based on halftone darkness.<br><strong>Note:</strong> Zero your Z-axis with the pen touching the paper, as Z=0 for all drawing moves.</p>
             </div>
 
-            <div class="control-group" id="wcs-group">
-                <label for="workZeroPosition">
-                    Work Zero Position:
-                </label>
-                <select id="workZeroPosition">
-                    <option value="bottom-left" selected>Bottom-Left Corner</option>
-                    <option value="bottom-right">Bottom-Right Corner</option>
-                    <option value="center">Center</option>
-                    <option value="top-left">Top-Left Corner</option>
-                    <option value="top-right">Top-Right Corner</option>
-                </select>
-                <p class="help-text">Where you set X0 Y0 on your workpiece</p>
+            <!-- Group 6: Output Options -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">Output Options</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="output-options-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact full-width" id="lineNumbers-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="lineNumbersToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Include Line Numbers</span>
+                                <span class="help-icon" data-tooltip="Add line numbers to G-code (useful for debugging)">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width">
+                            <label for="endPositionSelect">
+                                End Position <span class="help-icon" data-tooltip="Where to move XY after job completes">?</span>
+                            </label>
+                            <select id="endPositionSelect">
+                                <option value="zero" selected>Return to Zero (G0 X0 Y0)</option>
+                                <option value="home">Return to Home (G28)</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group compact full-width" id="plotter-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="plotterModeToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Plotter Mode</span>
+                                <span class="help-icon" data-tooltip="Generate drawing commands instead of cutting (pen up/down)">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width" id="plotterLineWidthMethod-group" style="display: none;">
+                            <label for="plotterLineWidthMethod">
+                                Line Width Method <span class="help-icon" data-tooltip="How to vary line width for different brightness levels">?</span>
+                            </label>
+                            <select id="plotterLineWidthMethod">
+                                <option value="pressure" selected>Pressure-Based (Z-axis)</option>
+                                <option value="setPenSize">Set Pen Size</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group compact full-width sub-option" id="plotterPressureCalibration-group" style="display: none;">
+                            <label>Pressure Calibration <span class="help-icon" data-tooltip="Click to see step-by-step calibration instructions">?</span></label>
+                            <button id="calibratePressureButton" class="auto-adjust-button" style="width: 100%;">🔧 Open Calibration Guide</button>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterPressureMin-group" style="display: none;">
+                            <label for="plotterPressureMin">
+                                Lightest Pressure (Z) <span class="help-icon" data-tooltip="Z-axis position for lightest pen pressure">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterPressureMin">-</button>
+                                <input type="number" id="plotterPressureMin" min="-10" max="5" step="0.1" value="0">
+                                <button class="increment-btn" data-target="plotterPressureMin">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterLineWidthLight-group" style="display: none;">
+                            <label for="plotterLineWidthLight">
+                                Line Width Light (mm) <span class="help-icon" data-tooltip="Line width your pen produces at lightest pressure">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterLineWidthLight">-</button>
+                                <input type="number" id="plotterLineWidthLight" min="0.1" max="5" step="0.1" value="0.3">
+                                <button class="increment-btn" data-target="plotterLineWidthLight">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterPressureMax-group" style="display: none;">
+                            <label for="plotterPressureMax">
+                                Heaviest Pressure (Z) <span class="help-icon" data-tooltip="Z-axis position for heaviest pen pressure">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterPressureMax">-</button>
+                                <input type="number" id="plotterPressureMax" min="-10" max="5" step="0.1" value="-0.5">
+                                <button class="increment-btn" data-target="plotterPressureMax">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterLineWidthHeavy-group" style="display: none;">
+                            <label for="plotterLineWidthHeavy">
+                                Line Width Heavy (mm) <span class="help-icon" data-tooltip="Maximum line width your pen produces at full pressure. For best results, match this to your spacing value to avoid gaps or overlap. (Can't be smaller than the Max Size)">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterLineWidthHeavy">-</button>
+                                <input type="number" id="plotterLineWidthHeavy" min="0.1" max="10" step="0.1" value="1.0">
+                                <button class="increment-btn" data-target="plotterLineWidthHeavy">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width sub-option" id="plotterPenSize-group" style="display: none;">
+                            <label for="plotterPenSize">
+                                Pen Size (mm) <span class="help-icon" data-tooltip="Fixed pen size in mm. System generates offset paths to fill shapes based on halftone darkness. Note: Zero your Z-axis with the pen touching the paper, as Z=0 for all drawing moves.">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterPenSize">-</button>
+                                <input type="number" id="plotterPenSize" min="0.1" max="5" step="0.1" value="0.5">
+                                <button class="increment-btn" data-target="plotterPenSize">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            <!-- Group 7: File Splitting -->
+            <div class="collapsible-group" data-default-expanded="false">
+                <button class="collapsible-header">
+                    <span class="group-title">File Splitting</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="file-splitting-group">
+                    <div class="control-grid-2col">
+                        <div class="control-group compact full-width" id="splitFiles-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="splitFilesToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Split Into Multiple Files</span>
+                                <span class="help-icon" data-tooltip="Split large G-code into multiple files with headers/footers">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact full-width sub-option" id="maxLinesPerFile-group" style="display: none;">
+                            <label for="maxLinesPerFile">
+                                Max Lines Per File <span class="help-icon" data-tooltip="Maximum lines of G-code per file (each file gets complete header/footer)">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="maxLinesPerFile">-</button>
+                                <input type="number" id="maxLinesPerFile" min="1000" max="1000000" step="1000" value="50000">
+                                <button class="increment-btn" data-target="maxLinesPerFile">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
                 </div>
                     </div>
                     <!-- End CNC Settings Tab -->
@@ -1083,6 +1186,8 @@
     <script src="lib/ace-editor/theme-gcode-pro.js"></script>
     <script src="lib/ace-editor/mode-gcode-enhanced.js"></script>
     <script src="src/ui/ace-gcode-viewer.js"></script>
+    <script src="src/ui/collapsible-groups.js"></script>
+    <script src="src/ui/tooltip-handler.js"></script>
 
     <!-- Three.js for 3D Visualization -->
     <script src="lib/three-js/three.js"></script>
