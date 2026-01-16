@@ -192,21 +192,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Toggle material block button
-    const toggleBlockBtn = document.getElementById('vizToggleBlockButton');
-    if (toggleBlockBtn) {
-        toggleBlockBtn.addEventListener('click', () => {
-            if (window.gcodeVisualizer) {
-                window.gcodeVisualizer.toggleMaterialBlock();
-                // Update button text based on visibility
-                if (window.gcodeVisualizer.materialBlock) {
-                    const isVisible = window.gcodeVisualizer.materialBlock.visible;
-                    toggleBlockBtn.textContent = isVisible ? '🧱 Hide Block' : '🧱 Show Block';
-                }
-            }
-        });
-    }
-
     // Camera view preset buttons
     const cameraTopBtn = document.getElementById('vizCameraTopButton');
     if (cameraTopBtn) {
@@ -271,15 +256,17 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
     const heightInput = document.getElementById('imageHeight');
     const thicknessInput = document.getElementById('materialThickness');
 
-    const imageWidth = widthInput ? parseFloat(widthInput.value) : null;
-    const imageHeight = heightInput ? parseFloat(heightInput.value) : null;
-    const materialThickness = thicknessInput ? parseFloat(thicknessInput.value) : null;
-
     // Get plotter mode settings for pressure visualization
     const plotterModeToggle = document.getElementById('plotterModeToggle');
     const plotterMethod = document.getElementById('plotterLineWidthMethod');
     const isPlotterMode = plotterModeToggle?.checked || false;
     const isPressureMethod = plotterMethod?.value === 'pressure';
+
+    // Parse values with fallbacks for plotter mode (use 1mm thickness for paper surface)
+    const imageWidth = widthInput ? parseFloat(widthInput.value) : null;
+    const imageHeight = heightInput ? parseFloat(heightInput.value) : null;
+    const rawThickness = thicknessInput ? parseFloat(thicknessInput.value) : null;
+    const materialThickness = (rawThickness && rawThickness > 0) ? rawThickness : (isPlotterMode ? 1 : 10);
 
     // Get pressure range for visualization
     const pressureMinInput = document.getElementById('plotterPressureMin');
@@ -344,9 +331,16 @@ function updatePressureLegendVisibility() {
     if (depthLegend) {
         depthLegend.style.display = (!isPlotterMode && visualizerLoaded) ? 'block' : 'none';
 
-        // Update max depth display if visualizer is loaded
+        // Update min and max depth displays if visualizer is loaded
         if (!isPlotterMode && visualizerLoaded && window.gcodeVisualizer) {
+            const minDepth = window.gcodeVisualizer.getDetectedMinDepth ? window.gcodeVisualizer.getDetectedMinDepth() : 0;
             const maxDepth = window.gcodeVisualizer.getDetectedMaxDepth ? window.gcodeVisualizer.getDetectedMaxDepth() : 0;
+
+            const minDepthDisplay = document.getElementById('vizMinDepthDisplay');
+            if (minDepthDisplay) {
+                minDepthDisplay.textContent = `(${minDepth.toFixed(2)}mm)`;
+            }
+
             const maxDepthDisplay = document.getElementById('vizMaxDepthDisplay');
             if (maxDepthDisplay) {
                 maxDepthDisplay.textContent = `(${maxDepth.toFixed(2)}mm)`;

@@ -3239,7 +3239,7 @@ generateGcodeButton.addEventListener('click', () => {
             vbitToolNumber: plotterMode ? 1 : vbitToolNumber,
             boundaryToolNumber,
             boundaryToolSize,
-            materialThickness: plotterMode ? 0 : materialThickness,
+            materialThickness: plotterMode ? 1 : materialThickness, // Use 1mm for plotter mode (paper surface)
             boundaryPassDepth: plotterMode ? 0 : boundaryPassDepth,
             multiPassCount: plotterMode ? 1 : multiPassCount,
             depthPerPass: plotterMode ? 0.1 : depthPerPass,

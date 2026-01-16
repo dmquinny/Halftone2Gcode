@@ -1126,7 +1126,6 @@
                                         <button id="vizPlayButton" style="flex: 0 0 100px; padding: 8px; background: #4CAF50; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">▶ Play</button>
                                         <button id="vizPauseButton" style="flex: 0 0 100px; padding: 8px; background: #ff9800; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏸ Pause</button>
                                         <button id="vizResetButton" style="flex: 0 0 100px; padding: 8px; background: #2196F3; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">⏮ Reset</button>
-                                        <button id="vizToggleBlockButton" style="flex: 0 0 140px; padding: 8px; background: #9C27B0; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">🧱 Hide Block</button>
                                         <div style="flex: 1;"></div>
                                         <label style="display: flex; align-items: center; gap: 8px; color: white;">
                                             Speed:
@@ -1167,10 +1166,11 @@
                                             <span style="color: #999; font-size: 0.9em;">Depth:</span>
                                             <div style="display: flex; align-items: center; gap: 5px;">
                                                 <span style="color: #88ff88; font-size: 0.85em;">Shallow</span>
+                                                <span id="vizMinDepthDisplay" style="color: #88ff88; font-size: 0.85em;">(0.00mm)</span>
                                                 <div style="width: 150px; height: 12px; background: linear-gradient(to right, #88ff88, #aaaa44, #cc2222); border-radius: 2px;"></div>
                                                 <span style="color: #cc2222; font-size: 0.85em;">Deep</span>
+                                                <span id="vizMaxDepthDisplay" style="color: #cc2222; font-size: 0.85em;">(0.00mm)</span>
                                             </div>
-                                            <span id="vizMaxDepthDisplay" style="color: #888; font-size: 0.85em; margin-left: 5px;">(0.0mm)</span>
                                             <button id="vizToggleDepthColors" style="padding: 5px 12px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Hide Colors</button>
                                         </div>
                                     </div>

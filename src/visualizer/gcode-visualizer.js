@@ -24,9 +24,6 @@ class GCodeVisualizer {
         // Visual elements
         this.pathGroup = new THREE.Group();
         this.toolMesh = null;
-        this.materialBlock = null;
-        this.depthCanvas = null;
-        this.depthTexture = null;
 
         // Plotter mode settings for pressure visualization
         this.plotterMode = false;
@@ -183,6 +180,12 @@ class GCodeVisualizer {
         }
 
         this.drawToolpath();
+
+        // Force a second redraw to ensure depth colors are calculated correctly
+        // This fixes an issue where the first draw doesn't use the full color range
+        if (!this.plotterMode && this.showDepthColors) {
+            setTimeout(() => this.drawToolpath(), 0);
+        }
     }
 
     drawToolpath() {
@@ -197,6 +200,23 @@ class GCodeVisualizer {
 
         // Offset toolpath to sit on top of material block surface
         const toolpathOffset = this.materialThickness || 0;
+
+        // Always detect min/max depths for legend display (regardless of color mode)
+        if (!this.plotterMode) {
+            let actualMaxDepth = 0;
+            let actualMinDepth = Infinity;
+            for (let i = 0; i < this.moves.length; i++) {
+                const move = this.moves[i];
+                if (move.type === 'cutting' && move.to.z < 0) {
+                    const absDepth = Math.abs(move.to.z);
+                    actualMaxDepth = Math.max(actualMaxDepth, absDepth);
+                    actualMinDepth = Math.min(actualMinDepth, absDepth);
+                }
+            }
+            if (actualMinDepth === Infinity) actualMinDepth = 0;
+            this.detectedMaxDepth = actualMaxDepth;
+            this.detectedMinDepth = actualMinDepth;
+        }
 
         // Check if we should use pressure-based coloring (plotter mode)
         const usePressureColors = this.plotterMode && this.showPressureColors;
@@ -278,17 +298,11 @@ class GCodeVisualizer {
             const rapidVertices = [];
             const depthBands = new Array(NUM_DEPTH_BANDS).fill(null).map(() => []);
 
-            // Find the actual max depth from the moves for accurate scaling
-            let actualMaxDepth = 0;
-            for (let i = 0; i < this.moves.length; i++) {
-                const move = this.moves[i];
-                if (move.type === 'cutting' && move.to.z < 0) {
-                    actualMaxDepth = Math.max(actualMaxDepth, Math.abs(move.to.z));
-                }
-            }
-            // Use detected max depth or configured max, whichever is larger
-            const depthRange = Math.max(actualMaxDepth, this.maxCuttingDepth);
-            this.detectedMaxDepth = actualMaxDepth; // Store for legend display
+            // Use pre-calculated depth values for color range
+            // Scale colors from minDepth to maxDepth for better color distribution
+            const minDepth = this.detectedMinDepth || 0;
+            const maxDepth = Math.max(this.detectedMaxDepth, this.maxCuttingDepth);
+            const depthSpan = maxDepth - minDepth; // Actual range of depths
 
             for (let i = 0; i < this.moves.length; i++) {
                 const move = this.moves[i];
@@ -306,10 +320,11 @@ class GCodeVisualizer {
                     rapidVertices.push(toX, toY, toZ);
                 } else {
                     // Determine depth band based on destination Z (negative = deeper)
+                    // Normalize to actual depth range (minDepth to maxDepth) for better color distribution
                     const depth = Math.abs(Math.min(0, move.to.z)); // Convert to positive depth
                     let bandIndex = 0;
-                    if (depthRange > 0) {
-                        const normalizedDepth = depth / depthRange;
+                    if (depthSpan > 0) {
+                        const normalizedDepth = (depth - minDepth) / depthSpan;
                         bandIndex = Math.floor(Math.max(0, Math.min(0.999, normalizedDepth)) * NUM_DEPTH_BANDS);
                     }
                     depthBands[bandIndex].push(fromX, fromY, fromZ, toX, toY, toZ);
@@ -409,145 +424,10 @@ class GCodeVisualizer {
             }
         }
 
-        // Create material block visualization if dimensions are available
-        if (this.imageWidth && this.imageHeight && this.materialThickness) {
-            this.createMaterialBlock();
-        }
-
         this.scene.add(this.pathGroup);
 
         // Center camera on toolpath
         this.centerCameraOnToolpath();
-    }
-
-    createMaterialBlock() {
-        // Remove existing material block if present
-        if (this.materialBlock) {
-            this.scene.remove(this.materialBlock);
-            this.materialBlock = null;
-        }
-
-        const width = this.imageWidth;
-        const height = this.imageHeight;
-        const thickness = this.materialThickness;
-
-        // Create a blank canvas (uncarved material) - we'll update it progressively during simulation
-        const resolution = 1024;
-        this.depthCanvas = document.createElement('canvas');
-        this.depthCanvas.width = resolution;
-        this.depthCanvas.height = resolution;
-        const ctx = this.depthCanvas.getContext('2d');
-
-        // Fill with light wood color (uncarved material)
-        ctx.fillStyle = '#f5deb3';
-        ctx.fillRect(0, 0, resolution, resolution);
-
-        // Create texture from canvas
-        this.depthTexture = new THREE.CanvasTexture(this.depthCanvas);
-        this.depthTexture.needsUpdate = true;
-
-        // Create the material block as a box
-        const blockGeometry = new THREE.BoxGeometry(width, thickness, height);
-
-        // Create materials for each face
-        const sideMaterial = new THREE.MeshPhongMaterial({
-            color: 0xd2b48c, // Tan/wood side color
-            shininess: 5
-        });
-
-        const topMaterial = new THREE.MeshPhongMaterial({
-            color: 0xf5deb3, // Light wood color - will show carved texture during simulation
-            map: this.depthTexture,
-            shininess: 5
-        });
-
-        const materials = [
-            sideMaterial, // right
-            sideMaterial, // left
-            topMaterial,  // top (carved surface)
-            sideMaterial, // bottom
-            sideMaterial, // front
-            sideMaterial  // back
-        ];
-
-        this.materialBlock = new THREE.Mesh(blockGeometry, materials);
-
-        // Position the block so the top surface is at Y=0 (G-code Z=0)
-        // In Three.js: X stays X, Z (gcode) becomes Y (threejs), Y (gcode) becomes -Z (threejs)
-        this.materialBlock.position.set(width / 2, -thickness / 2, -height / 2);
-
-        this.scene.add(this.materialBlock);
-
-        // Store carving parameters for simulation
-        this.vbitAngle = document.getElementById('vbitAngle') ? parseFloat(document.getElementById('vbitAngle').value) : 90;
-        this.carvingResolution = resolution;
-        this.carvingScaleX = resolution / width;
-        this.carvingScaleY = resolution / height;
-
-        // Calculate max depth
-        let maxDepth = 0.1;
-        for (let i = 0; i < this.moves.length; i++) {
-            const depth = Math.abs(this.moves[i].to.z);
-            if (depth > maxDepth) maxDepth = depth;
-        }
-        this.maxDepth = maxDepth;
-
-        // Draw the complete halftone image immediately
-        this.updateMaterialCarving();
-    }
-
-    updateMaterialCarving() {
-        // Show complete halftone image (all moves, not progressive)
-        if (!this.depthCanvas || !this.materialBlock) return;
-
-        const ctx = this.depthCanvas.getContext('2d');
-
-        // Reset to blank wood
-        ctx.fillStyle = '#f5deb3';
-        ctx.fillRect(0, 0, this.carvingResolution, this.carvingResolution);
-
-        // Calculate V-bit parameters
-        const angleRad = (this.vbitAngle * Math.PI) / 180;
-        const tanHalfAngle = Math.tan(angleRad / 2);
-
-        // Draw ALL carved lines to show complete halftone image
-        for (let i = 0; i < this.moves.length; i++) {
-            const move = this.moves[i];
-
-            if (move.type === 'cutting') {
-                const depth = Math.abs(move.to.z);
-                const vbitWidth = 2 * depth * tanHalfAngle;
-                const lineWidth = Math.max(1, vbitWidth * this.carvingScaleX);
-
-                const darkness = Math.min(1, depth / this.maxDepth);
-                const gray = Math.floor(245 - (darkness * 180));
-                ctx.strokeStyle = `rgb(${gray}, ${gray - 20}, ${gray - 30})`;
-                ctx.lineWidth = lineWidth;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
-                // Transform G-code coordinates to canvas coordinates
-                // Canvas uses standard screen coordinates (Y+ down)
-                // We need to flip Y to match the Three.js texture orientation
-                const x1 = move.from.x * this.carvingScaleX;
-                const y1 = (this.imageHeight - move.from.y) * this.carvingScaleY;
-                const x2 = move.to.x * this.carvingScaleX;
-                const y2 = (this.imageHeight - move.to.y) * this.carvingScaleY;
-
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.stroke();
-            }
-        }
-
-        this.depthTexture.needsUpdate = true;
-    }
-
-    toggleMaterialBlock() {
-        if (!this.materialBlock) return;
-
-        this.materialBlock.visible = !this.materialBlock.visible;
     }
 
     // Camera preset views
@@ -922,6 +802,12 @@ class GCodeVisualizer {
         }
 
         this.drawToolpath();
+
+        // Force a second redraw to ensure depth colors are calculated correctly
+        // This fixes an issue where the first draw doesn't use the full color range
+        if (!this.plotterMode && this.showDepthColors) {
+            setTimeout(() => this.drawToolpath(), 0);
+        }
     }
 
     /**
@@ -980,6 +866,14 @@ class GCodeVisualizer {
      */
     getDetectedMaxDepth() {
         return this.detectedMaxDepth || 0;
+    }
+
+    /**
+     * Get the detected min (shallowest) depth from the loaded G-code
+     * @returns {number} - Min depth in mm
+     */
+    getDetectedMinDepth() {
+        return this.detectedMinDepth || 0;
     }
 
     /**
