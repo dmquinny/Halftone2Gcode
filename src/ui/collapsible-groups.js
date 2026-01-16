@@ -119,11 +119,20 @@ class CollapsibleGroups {
     }
 
     saveState() {
-        const state = {};
-        this.groups.forEach((isExpanded, groupId) => {
-            state[groupId] = isExpanded;
-        });
-        localStorage.setItem(this.storageKey, JSON.stringify(state));
+        try {
+            const state = {};
+            this.groups.forEach((isExpanded, groupId) => {
+                state[groupId] = isExpanded;
+            });
+            localStorage.setItem(this.storageKey, JSON.stringify(state));
+        } catch (error) {
+            // Handle quota exceeded or other storage errors
+            if (error.name === 'QuotaExceededError' || error.code === 22) {
+                console.warn('localStorage quota exceeded, unable to save collapsible groups state');
+            } else {
+                console.warn('Failed to save collapsible groups state:', error);
+            }
+        }
     }
 
     loadState() {
@@ -131,9 +140,13 @@ class CollapsibleGroups {
             const saved = localStorage.getItem(this.storageKey);
             if (saved) {
                 const state = JSON.parse(saved);
-                Object.entries(state).forEach(([groupId, isExpanded]) => {
-                    this.groups.set(groupId, isExpanded);
-                });
+                if (state && typeof state === 'object') {
+                    Object.entries(state).forEach(([groupId, isExpanded]) => {
+                        if (typeof isExpanded === 'boolean') {
+                            this.groups.set(groupId, isExpanded);
+                        }
+                    });
+                }
             }
         } catch (error) {
             console.warn('Failed to load collapsible groups state:', error);

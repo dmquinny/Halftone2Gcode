@@ -110,6 +110,12 @@ fn read_gcode_lines(file_path: String, start_line: usize, line_count: usize) -> 
 }
 
 #[tauri::command]
+fn write_text_file(file_path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&file_path, contents)
+        .map_err(|e| format!("Failed to write file: {}", e))
+}
+
+#[tauri::command]
 fn open_file_in_editor(file_path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -155,6 +161,7 @@ fn main() {
             finish_gcode_stream,
             read_gcode_file,
             read_gcode_lines,
+            write_text_file,
             open_file_in_editor
         ])
         .run(tauri::generate_context!())

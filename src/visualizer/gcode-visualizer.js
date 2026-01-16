@@ -28,6 +28,12 @@ class GCodeVisualizer {
         this.depthCanvas = null;
         this.depthTexture = null;
 
+        // Plotter mode settings for pressure visualization
+        this.plotterMode = false;
+        this.plotterPressureMin = 0;      // Light pressure (less negative Z)
+        this.plotterPressureMax = -0.5;   // Heavy pressure (more negative Z)
+        this.showPressureColors = true;   // Color-code by pressure
+
         this.init();
     }
 
@@ -185,62 +191,135 @@ class GCodeVisualizer {
             return;
         }
 
-        // Use buffer geometry with lines - memory efficient rendering
-        const rapidVertices = [];
-        const cuttingVertices = [];
-
         // Offset toolpath to sit on top of material block surface
         const toolpathOffset = this.materialThickness || 0;
 
-        for (let i = 0; i < this.moves.length; i++) {
-            const move = this.moves[i];
+        // Check if we should use pressure-based coloring (plotter mode)
+        const usePressureColors = this.plotterMode && this.showPressureColors;
 
-            // Transform G-code coordinates to Three.js coordinates
-            // Add toolpathOffset to Y to raise the lines above the material surface
-            const fromX = move.from.x;
-            const fromY = move.from.z + toolpathOffset;
-            const fromZ = -move.from.y;
+        if (usePressureColors) {
+            // Plotter mode: color-code cutting moves by pressure (Z depth)
+            // Group moves into pressure bands for efficient rendering
+            const NUM_PRESSURE_BANDS = 10;
+            const rapidVertices = [];
+            const pressureBands = new Array(NUM_PRESSURE_BANDS).fill(null).map(() => []);
 
-            const toX = move.to.x;
-            const toY = move.to.z + toolpathOffset;
-            const toZ = -move.to.y;
+            const pressureRange = this.plotterPressureMin - this.plotterPressureMax;
 
-            // Add line segment to appropriate array
-            if (move.type === 'rapid') {
-                rapidVertices.push(fromX, fromY, fromZ);
-                rapidVertices.push(toX, toY, toZ);
-            } else {
-                cuttingVertices.push(fromX, fromY, fromZ);
-                cuttingVertices.push(toX, toY, toZ);
+            for (let i = 0; i < this.moves.length; i++) {
+                const move = this.moves[i];
+
+                const fromX = move.from.x;
+                const fromY = move.from.z + toolpathOffset;
+                const fromZ = -move.from.y;
+
+                const toX = move.to.x;
+                const toY = move.to.z + toolpathOffset;
+                const toZ = -move.to.y;
+
+                if (move.type === 'rapid') {
+                    rapidVertices.push(fromX, fromY, fromZ);
+                    rapidVertices.push(toX, toY, toZ);
+                } else {
+                    // Determine pressure band based on destination Z
+                    let bandIndex = 0;
+                    if (pressureRange > 0) {
+                        const normalizedPressure = (this.plotterPressureMin - move.to.z) / pressureRange;
+                        bandIndex = Math.floor(Math.max(0, Math.min(0.999, normalizedPressure)) * NUM_PRESSURE_BANDS);
+                    }
+                    pressureBands[bandIndex].push(fromX, fromY, fromZ, toX, toY, toZ);
+                }
             }
-        }
 
-        // Create rapid moves line (cyan)
-        if (rapidVertices.length > 0) {
-            const rapidGeometry = new THREE.BufferGeometry();
-            rapidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(rapidVertices, 3));
-            const rapidMaterial = new THREE.LineBasicMaterial({
-                color: 0x00ffff, // Professional cyan for rapids
-                linewidth: 2,
-                opacity: 0.6,
-                transparent: true
-            });
-            const rapidLines = new THREE.LineSegments(rapidGeometry, rapidMaterial);
-            this.pathGroup.add(rapidLines);
-        }
+            // Create rapid moves (cyan)
+            if (rapidVertices.length > 0) {
+                const rapidGeometry = new THREE.BufferGeometry();
+                rapidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(rapidVertices, 3));
+                const rapidMaterial = new THREE.LineBasicMaterial({
+                    color: 0x00ffff,
+                    linewidth: 2,
+                    opacity: 0.6,
+                    transparent: true
+                });
+                const rapidLines = new THREE.LineSegments(rapidGeometry, rapidMaterial);
+                this.pathGroup.add(rapidLines);
+            }
 
-        // Create cutting moves line (blue)
-        if (cuttingVertices.length > 0) {
-            const cuttingGeometry = new THREE.BufferGeometry();
-            cuttingGeometry.setAttribute('position', new THREE.Float32BufferAttribute(cuttingVertices, 3));
-            const cuttingMaterial = new THREE.LineBasicMaterial({
-                color: 0x4488ff, // Professional blue for cutting
-                linewidth: 2,
-                opacity: 1.0,
-                transparent: false
-            });
-            const cuttingLines = new THREE.LineSegments(cuttingGeometry, cuttingMaterial);
-            this.pathGroup.add(cuttingLines);
+            // Create cutting moves for each pressure band with gradient colors
+            for (let band = 0; band < NUM_PRESSURE_BANDS; band++) {
+                if (pressureBands[band].length === 0) continue;
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(pressureBands[band], 3));
+
+                // Calculate color for this band (light cyan to deep blue gradient)
+                const bandRatio = band / (NUM_PRESSURE_BANDS - 1);
+                const r = Math.round(0x88 + (0x11 - 0x88) * bandRatio);
+                const g = Math.round(0xdd + (0x44 - 0xdd) * bandRatio);
+                const b = Math.round(0xff + (0xaa - 0xff) * bandRatio);
+                const bandColor = (r << 16) | (g << 8) | b;
+
+                const material = new THREE.LineBasicMaterial({
+                    color: bandColor,
+                    linewidth: 2,
+                    opacity: 1.0,
+                    transparent: false
+                });
+                const lines = new THREE.LineSegments(geometry, material);
+                this.pathGroup.add(lines);
+            }
+        } else {
+            // Standard mode: use fixed colors for rapid/cutting
+            const rapidVertices = [];
+            const cuttingVertices = [];
+
+            for (let i = 0; i < this.moves.length; i++) {
+                const move = this.moves[i];
+
+                const fromX = move.from.x;
+                const fromY = move.from.z + toolpathOffset;
+                const fromZ = -move.from.y;
+
+                const toX = move.to.x;
+                const toY = move.to.z + toolpathOffset;
+                const toZ = -move.to.y;
+
+                if (move.type === 'rapid') {
+                    rapidVertices.push(fromX, fromY, fromZ);
+                    rapidVertices.push(toX, toY, toZ);
+                } else {
+                    cuttingVertices.push(fromX, fromY, fromZ);
+                    cuttingVertices.push(toX, toY, toZ);
+                }
+            }
+
+            // Create rapid moves line (cyan)
+            if (rapidVertices.length > 0) {
+                const rapidGeometry = new THREE.BufferGeometry();
+                rapidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(rapidVertices, 3));
+                const rapidMaterial = new THREE.LineBasicMaterial({
+                    color: 0x00ffff,
+                    linewidth: 2,
+                    opacity: 0.6,
+                    transparent: true
+                });
+                const rapidLines = new THREE.LineSegments(rapidGeometry, rapidMaterial);
+                this.pathGroup.add(rapidLines);
+            }
+
+            // Create cutting moves line (blue)
+            if (cuttingVertices.length > 0) {
+                const cuttingGeometry = new THREE.BufferGeometry();
+                cuttingGeometry.setAttribute('position', new THREE.Float32BufferAttribute(cuttingVertices, 3));
+                const cuttingMaterial = new THREE.LineBasicMaterial({
+                    color: 0x4488ff,
+                    linewidth: 2,
+                    opacity: 1.0,
+                    transparent: false
+                });
+                const cuttingLines = new THREE.LineSegments(cuttingGeometry, cuttingMaterial);
+                this.pathGroup.add(cuttingLines);
+            }
         }
 
         // Create material block visualization if dimensions are available
@@ -404,9 +483,9 @@ class GCodeVisualizer {
         // Calculate the center of the toolpath
         const center = this.getToolpathCenter();
 
-        // Position camera looking from front (negative Z looking toward positive Z)
+        // Position camera looking from front (positive Z looking toward negative Z)
         const distance = this.getCameraDistance();
-        this.camera.position.set(center.x, distance * 0.5, -distance);
+        this.camera.position.set(center.x, distance * 0.5, distance);
         this.controls.target.set(center.x, 0, center.z);
         this.controls.update();
     }
@@ -756,6 +835,60 @@ class GCodeVisualizer {
         }
 
         this.drawToolpath();
+    }
+
+    /**
+     * Configure plotter mode visualization
+     * @param {boolean} enabled - Whether plotter mode is active
+     * @param {number} pressureMin - Light pressure Z value (typically 0 or near 0)
+     * @param {number} pressureMax - Heavy pressure Z value (typically negative)
+     */
+    setPlotterMode(enabled, pressureMin = 0, pressureMax = -0.5) {
+        this.plotterMode = enabled;
+        this.plotterPressureMin = pressureMin;
+        this.plotterPressureMax = pressureMax;
+
+        // Redraw toolpath if we have moves
+        if (this.moves.length > 0) {
+            this.drawToolpath();
+        }
+    }
+
+    /**
+     * Toggle pressure color visualization on/off
+     */
+    togglePressureColors() {
+        this.showPressureColors = !this.showPressureColors;
+        if (this.moves.length > 0) {
+            this.drawToolpath();
+        }
+        return this.showPressureColors;
+    }
+
+    /**
+     * Convert pressure/Z value to color for plotter mode visualization
+     * Light pressure (higher Z) = lighter color, Heavy pressure (lower Z) = darker color
+     * @param {number} z - Z coordinate (pressure value)
+     * @returns {THREE.Color} - Color based on pressure
+     */
+    getPressureColor(z) {
+        // Normalize Z to 0-1 range (0 = light pressure, 1 = heavy pressure)
+        const range = this.plotterPressureMin - this.plotterPressureMax; // Positive value
+        let normalizedPressure = 0;
+
+        if (range > 0) {
+            normalizedPressure = (this.plotterPressureMin - z) / range;
+            normalizedPressure = Math.max(0, Math.min(1, normalizedPressure));
+        }
+
+        // Create gradient from light cyan (low pressure) to deep blue (high pressure)
+        // Light pressure: 0x88ddff (light cyan-blue)
+        // Heavy pressure: 0x1144aa (deep blue)
+        const r = Math.round(0x88 + (0x11 - 0x88) * normalizedPressure);
+        const g = Math.round(0xdd + (0x44 - 0xdd) * normalizedPressure);
+        const b = Math.round(0xff + (0xaa - 0xff) * normalizedPressure);
+
+        return new THREE.Color((r << 16) | (g << 8) | b);
     }
 }
 

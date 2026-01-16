@@ -3,6 +3,7 @@ const imageInput = document.getElementById('imageInput');
 const originalCanvas = document.getElementById('originalCanvas');
 const halftoneCanvas = document.getElementById('halftoneCanvas');
 const generatePreviewButton = document.getElementById('generatePreviewButton');
+const cancelPreviewButton = document.getElementById('cancelPreviewButton');
 const generateGcodeButton = document.getElementById('generateGcodeButton');
 const downloadButton = document.getElementById('downloadButton');
 const gcodeOutput = document.getElementById('gcodeOutput');
@@ -99,6 +100,105 @@ const plotterPenWidthInput = document.getElementById('plotterPenWidth');
 const plotterPenSizeInput = document.getElementById('plotterPenSize');
 const plotterLineWidthLightInput = document.getElementById('plotterLineWidthLight');
 const plotterLineWidthHeavyInput = document.getElementById('plotterLineWidthHeavy');
+const plotterPenLiftInput = document.getElementById('plotterPenLift');
+const generateTestPatternButton = document.getElementById('generateTestPatternButton');
+const plotterSpacingRecommendation = document.getElementById('plotterSpacingRecommendation');
+const applySpacingRecommendationButton = document.getElementById('applySpacingRecommendation');
+const plotterMidpointToggle = document.getElementById('plotterMidpointToggle');
+const plotterPressureMidInput = document.getElementById('plotterPressureMid');
+const plotterLineWidthMidInput = document.getElementById('plotterLineWidthMid');
+const plotterCalibrationWarning = document.getElementById('plotterCalibrationWarning');
+const plotterPressureRampingToggle = document.getElementById('plotterPressureRampingToggle');
+const plotterRampDistanceInput = document.getElementById('plotterRampDistance');
+
+// CNC Mode Selector
+const cncModeVcarve = document.getElementById('cncModeVcarve');
+const cncModePlotter = document.getElementById('cncModePlotter');
+
+// Current CNC mode state
+let currentCncMode = 'vcarve';
+
+/**
+ * Switch between V-Carve and Plotter CNC modes
+ * @param {string} mode - Either 'vcarve' or 'plotter'
+ */
+function setCncMode(mode) {
+    currentCncMode = mode;
+
+    // Update button styles
+    if (cncModeVcarve && cncModePlotter) {
+        if (mode === 'vcarve') {
+            cncModeVcarve.style.background = '#5B9BD5';
+            cncModeVcarve.style.color = 'white';
+            cncModePlotter.style.background = '#2d2d2d';
+            cncModePlotter.style.color = '#aaa';
+        } else {
+            cncModePlotter.style.background = '#5B9BD5';
+            cncModePlotter.style.color = 'white';
+            cncModeVcarve.style.background = '#2d2d2d';
+            cncModeVcarve.style.color = '#aaa';
+        }
+    }
+
+    // Sync with the hidden plotterModeToggle for backward compatibility
+    if (plotterModeToggle) {
+        plotterModeToggle.checked = (mode === 'plotter');
+    }
+
+    // Show/hide groups based on mode
+    document.querySelectorAll('.collapsible-group[data-cnc-mode]').forEach(group => {
+        const groupMode = group.dataset.cncMode;
+        if (groupMode === 'common') {
+            group.style.display = '';
+        } else if (groupMode === mode) {
+            group.style.display = '';
+        } else {
+            group.style.display = 'none';
+        }
+    });
+
+    // Update labels that change based on mode
+    document.querySelectorAll('[data-vcarve-label]').forEach(el => {
+        el.style.display = (mode === 'vcarve') ? '' : 'none';
+    });
+    document.querySelectorAll('[data-plotter-label]').forEach(el => {
+        el.style.display = (mode === 'plotter') ? '' : 'none';
+    });
+
+    // Update plotter-specific sub-options visibility
+    if (mode === 'plotter') {
+        updatePlotterMethodOptions();
+    }
+
+    // Save mode preference
+    try {
+        localStorage.setItem('cncMode', mode);
+    } catch (e) {
+        // Ignore storage errors
+    }
+}
+
+// Initialize mode selector event listeners
+if (cncModeVcarve) {
+    cncModeVcarve.addEventListener('click', () => setCncMode('vcarve'));
+}
+if (cncModePlotter) {
+    cncModePlotter.addEventListener('click', () => setCncMode('plotter'));
+}
+
+// Load saved mode preference on startup
+try {
+    const savedMode = localStorage.getItem('cncMode');
+    if (savedMode === 'vcarve' || savedMode === 'plotter') {
+        // Defer mode initialization until DOM is fully ready
+        setTimeout(() => setCncMode(savedMode), 0);
+    } else {
+        // Default to vcarve
+        setTimeout(() => setCncMode('vcarve'), 0);
+    }
+} catch (e) {
+    setTimeout(() => setCncMode('vcarve'), 0);
+}
 
 let currentImage = null;
 let currentBoundaryGcode = null;
@@ -419,7 +519,9 @@ function initWorker() {
                             // Cutting mode: calculate depth from V-bit angle
                             const targetWidth = point.depth * maxDepth * 2;
                             const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
-                            const depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+                            const tanValue = Math.tan(vbitHalfAngle);
+                            // Prevent division by zero - if tan is 0 or very small, use maxDepth
+                            const depth = tanValue > 0.001 ? Math.min(targetWidth / (2 * tanValue), maxDepth) : maxDepth;
                             shouldProcess = depth > minDepth;
                         }
                         if (!shouldProcess) {
@@ -540,7 +642,9 @@ function initWorker() {
                                 // Normal cutting mode
                                 const targetWidth = point.depth * maxDepth * 2;
                                 const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
-                                const depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+                                const tanValue = Math.tan(vbitHalfAngle);
+                                // Prevent division by zero - if tan is 0 or very small, use maxDepth
+                                const depth = tanValue > 0.001 ? Math.min(targetWidth / (2 * tanValue), maxDepth) : maxDepth;
                                 const z = -depth;
                                 
                                 if (i === 0) {
@@ -722,6 +826,8 @@ function initWorker() {
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const blobURL = URL.createObjectURL(blob);
         halftoneWorker = new Worker(blobURL);
+        // Revoke the blob URL after the worker is created to free memory
+        URL.revokeObjectURL(blobURL);
     } catch (error) {
         console.error('Failed to initialize worker:', error);
         return false;
@@ -793,26 +899,32 @@ function initWorker() {
             previewInfo.style.color = '#28a745';
             previewProgress.style.display = 'none';
 
-            // Show the halftone info button - Removed
-            // if (showHalftoneInfoButton) {
-            //     showHalftoneInfoButton.style.display = 'block';
-            // }
+            // Re-enable preview button and hide cancel button
+            generatePreviewButton.disabled = false;
+            generatePreviewButton.textContent = autoUpdateEnabled ? 'Live Preview Active' : 'Generate Halftone Preview';
+            if (cancelPreviewButton) cancelPreviewButton.style.display = 'none';
 
             // Reset progressive arrays
             progressiveLines = [];
             progressiveElements = [];
-            
+
             // Terminate worker to free memory
             if (halftoneWorker) {
                 halftoneWorker.terminate();
                 halftoneWorker = null;
             }
-            
+
         } else if (type === 'error') {
-            previewInfo.textContent = 'Error generating preview: ' + error;
+            previewInfo.textContent = 'Error: ' + (error || 'Unknown error generating preview');
             previewInfo.style.color = '#dc3545';
+            previewProgress.style.display = 'none';
             console.error(error);
-            
+
+            // Re-enable preview button and hide cancel button so user can retry
+            generatePreviewButton.disabled = false;
+            generatePreviewButton.textContent = autoUpdateEnabled ? 'Live Preview Active' : 'Generate Halftone Preview';
+            if (cancelPreviewButton) cancelPreviewButton.style.display = 'none';
+
             // Terminate worker on error too
             if (halftoneWorker) {
                 halftoneWorker.terminate();
@@ -846,22 +958,13 @@ function initWorker() {
             downloadButton.disabled = false;
 
             // Display with Monaco Editor (virtual scrolling built-in)
-            console.log('Attempting to display G-code...');
-            console.log('window.monacoGcode exists:', !!window.monacoGcode);
-            console.log('Monaco loaded:', window.monacoGcode ? window.monacoGcode.isLoaded() : false);
-
             if (window.monacoGcode && window.monacoGcode.isLoaded()) {
-                console.log('Using Monaco Editor to display G-code');
                 window.monacoGcode.display(data.gcode);
             } else {
-                console.warn('Monaco Editor not loaded yet, waiting and retrying...');
                 // Retry after a short delay
                 setTimeout(() => {
                     if (window.monacoGcode && window.monacoGcode.isLoaded()) {
-                        console.log('Monaco now loaded, displaying G-code');
                         window.monacoGcode.display(data.gcode);
-                    } else {
-                        console.error('Monaco Editor failed to load - G-code stored in memory only');
                     }
                 }, 1000);
             }
@@ -928,6 +1031,31 @@ function initWorker() {
     return true;
 }
 
+// Cancel preview generation
+function cancelPreviewGeneration() {
+    if (halftoneWorker) {
+        halftoneWorker.terminate();
+        halftoneWorker = null;
+    }
+
+    // Reset UI state
+    previewInfo.textContent = 'Preview generation cancelled';
+    previewInfo.style.color = '#6c757d';
+    previewProgress.style.display = 'none';
+    generatePreviewButton.disabled = false;
+    generatePreviewButton.textContent = autoUpdateEnabled ? 'Live Preview Active' : 'Generate Halftone Preview';
+    if (cancelPreviewButton) cancelPreviewButton.style.display = 'none';
+
+    // Reset progressive arrays
+    progressiveLines = [];
+    progressiveElements = [];
+}
+
+// Cancel button event listener
+if (cancelPreviewButton) {
+    cancelPreviewButton.addEventListener('click', cancelPreviewGeneration);
+}
+
 // Virtual scrolling for G-code display
 let gcodeLines = [];
 let gcodeScrollContainer = null;
@@ -974,6 +1102,17 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Safe number parsing with fallback values
+function safeParseFloat(value, defaultValue = 0) {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? defaultValue : parsed;
+}
+
+function safeParseInt(value, defaultValue = 0) {
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? defaultValue : parsed;
 }
 
 // Theme handling
@@ -1306,13 +1445,18 @@ multiPassCountInput.addEventListener('change', updateDepthPerPassVisibility);
 
 boundaryToggle.addEventListener('change', () => {
     const isChecked = boundaryToggle.checked;
-    boundaryToolSizeGroup.style.display = isChecked ? 'flex' : 'none';
-    boundaryPassDepthGroup.style.display = isChecked ? 'flex' : 'none';
-    includeBoundaryInGcodeGroup.style.display = isChecked ? 'flex' : 'none';
-    borderCuttingFeedRateInput.parentElement.parentElement.style.display = isChecked ? 'flex' : 'none';
+    if (boundaryToolSizeGroup) boundaryToolSizeGroup.style.display = isChecked ? 'flex' : 'none';
+    if (boundaryPassDepthGroup) boundaryPassDepthGroup.style.display = isChecked ? 'flex' : 'none';
+    if (includeBoundaryInGcodeGroup) includeBoundaryInGcodeGroup.style.display = isChecked ? 'flex' : 'none';
+
+    // Safely access borderCuttingFeedRate group with null checks
+    const borderCuttingFeedRateGroup = borderCuttingFeedRateInput?.parentElement?.parentElement;
+    if (borderCuttingFeedRateGroup) {
+        borderCuttingFeedRateGroup.style.display = isChecked ? 'flex' : 'none';
+    }
 
     // Show boundary tool NUMBER only if both boundary and tool changer are enabled
-    if (toolChangeToggle.checked) {
+    if (toolChangeToggle?.checked && boundaryToolNumberGroup) {
         boundaryToolNumberGroup.style.display = isChecked ? 'flex' : 'none';
     }
 });
@@ -1377,34 +1521,388 @@ const calibrationModal = document.getElementById('calibrationModal');
 const calibratePressureButton = document.getElementById('calibratePressureButton');
 const closeCalibrationModal = document.getElementById('closeCalibrationModal');
 
-if (calibratePressureButton) {
+if (calibratePressureButton && calibrationModal) {
     calibratePressureButton.addEventListener('click', () => {
         calibrationModal.style.display = 'flex';
     });
 }
 
-if (closeCalibrationModal) {
+if (closeCalibrationModal && calibrationModal) {
     closeCalibrationModal.addEventListener('click', () => {
         calibrationModal.style.display = 'none';
     });
 }
 
 // Close modal when clicking outside of it
-calibrationModal.addEventListener('click', (e) => {
-    if (e.target === calibrationModal) {
-        calibrationModal.style.display = 'none';
-    }
-});
+if (calibrationModal) {
+    calibrationModal.addEventListener('click', (e) => {
+        if (e.target === calibrationModal) {
+            calibrationModal.style.display = 'none';
+        }
+    });
+}
 
 // Close modal with Escape key
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && calibrationModal.style.display === 'flex') {
+    if (e.key === 'Escape' && calibrationModal?.style.display === 'flex') {
         calibrationModal.style.display = 'none';
     }
-    if (e.key === 'Escape' && halftoneInfoModal.style.display === 'flex') {
+    if (e.key === 'Escape' && halftoneInfoModal?.style.display === 'flex') {
         halftoneInfoModal.style.display = 'none';
     }
 });
+
+// ============================================
+// PLOTTER CALIBRATION TEST PATTERN GENERATOR
+// ============================================
+
+/**
+ * Generate a calibration test pattern G-code with varying Z pressures
+ * This creates horizontal lines at different Z heights so users can measure
+ * actual line widths and calibrate their pressure settings
+ */
+function generateCalibrationTestPattern() {
+    const pressureMin = parseFloat(plotterPressureMinInput?.value || 0);
+    const pressureMax = parseFloat(plotterPressureMaxInput?.value || -0.5);
+    const penLift = parseFloat(plotterPenLiftInput?.value || 2);
+    const feedRate = parseFloat(cuttingFeedRateInput?.value || 1000);
+
+    // Generate 10 test lines with varying pressures
+    const numLines = 10;
+    const lineLength = 50; // mm
+    const lineSpacing = 8; // mm between lines
+    const labelOffset = 5; // mm offset for labels
+
+    const gcode = [];
+
+    // Header
+    gcode.push('(Plotter Pressure Calibration Test Pattern)');
+    gcode.push(`(Pressure range: Z${pressureMin.toFixed(2)} to Z${pressureMax.toFixed(2)})`);
+    gcode.push('(Measure each line width and enter values in calibration settings)');
+    gcode.push('');
+    gcode.push('G21 (Metric units)');
+    gcode.push('G90 (Absolute positioning)');
+    gcode.push('G17 (XY plane)');
+    gcode.push(`F${feedRate} (Feed rate)`);
+    gcode.push(`G0 Z${penLift.toFixed(1)} (Safe height)`);
+    gcode.push('G0 X0 Y0 (Move to origin)');
+    gcode.push('');
+
+    // Generate test lines
+    for (let i = 0; i < numLines; i++) {
+        const progress = i / (numLines - 1); // 0 to 1
+        const pressure = pressureMin + (pressureMax - pressureMin) * progress;
+        const yPos = i * lineSpacing;
+
+        gcode.push(`(Line ${i + 1}: Z = ${pressure.toFixed(2)}mm)`);
+        gcode.push(`G0 X0 Y${yPos.toFixed(1)}`);
+        gcode.push(`G1 Z${pressure.toFixed(2)} F${Math.round(feedRate / 2)}`);
+        gcode.push(`G1 X${lineLength.toFixed(1)} F${feedRate}`);
+        gcode.push(`G0 Z${penLift.toFixed(1)}`);
+        gcode.push('');
+    }
+
+    // Footer
+    gcode.push(`G0 Z${penLift.toFixed(1)} (Safe height)`);
+    gcode.push('G0 X0 Y0 (Return to origin)');
+    gcode.push('M30 (Program end)');
+
+    return gcode.join('\n');
+}
+
+/**
+ * Handle test pattern generation button click
+ */
+if (generateTestPatternButton) {
+    generateTestPatternButton.addEventListener('click', async () => {
+        const gcode = generateCalibrationTestPattern();
+
+        // Check if Tauri is available for file save
+        if (window.__TAURI__) {
+            try {
+                const filePath = await window.__TAURI__.dialog.save({
+                    defaultPath: 'pressure_calibration_test.nc',
+                    filters: [{
+                        name: 'G-code Files',
+                        extensions: ['nc', 'gcode', 'tap', 'txt']
+                    }]
+                });
+
+                if (filePath) {
+                    // Use Tauri v2 invoke API for file writing
+                    const invoke = window.__TAURI_INTERNALS__.invoke;
+                    await invoke('write_text_file', { filePath, contents: gcode });
+                    alert(`Calibration test pattern saved to:\n${filePath}\n\nInstructions:\n1. Run this G-code on your plotter\n2. Measure the width of each line with calipers\n3. Note which Z values produce which line widths\n4. Enter the lightest and heaviest values in the calibration settings`);
+                }
+            } catch (error) {
+                console.error('Failed to save test pattern:', error);
+                alert('Failed to save test pattern: ' + error.message);
+            }
+        } else {
+            // Browser mode - download as file
+            const blob = new Blob([gcode], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pressure_calibration_test.nc';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert(`Calibration test pattern downloaded!\n\nInstructions:\n1. Run this G-code on your plotter\n2. Measure the width of each line with calipers\n3. Note which Z values produce which line widths\n4. Enter the lightest and heaviest values in the calibration settings`);
+        }
+    });
+}
+
+// ============================================
+// SPACING RECOMMENDATION SYSTEM
+// ============================================
+
+/**
+ * Calculate and display recommended spacing based on line width settings
+ */
+function updateSpacingRecommendation() {
+    const lightWidth = parseFloat(plotterLineWidthLightInput?.value || 0.3);
+    const heavyWidth = parseFloat(plotterLineWidthHeavyInput?.value || 1.0);
+    const currentSpacing = parseFloat(spacingInput?.value || 1.0);
+
+    // Recommended spacing is the average of light and heavy widths
+    // This provides good coverage without excessive overlap
+    const recommendedSpacing = (lightWidth + heavyWidth) / 2;
+
+    // Check for potential issues
+    let status = 'good';
+    let message = '';
+    let recommendation = '';
+
+    if (currentSpacing < lightWidth * 0.8) {
+        status = 'warning';
+        message = `Current spacing (${currentSpacing.toFixed(2)}mm) is much smaller than your lightest line width (${lightWidth.toFixed(2)}mm). This will cause excessive overlap.`;
+        recommendation = recommendedSpacing.toFixed(2);
+    } else if (currentSpacing > heavyWidth * 1.2) {
+        status = 'warning';
+        message = `Current spacing (${currentSpacing.toFixed(2)}mm) is larger than your heaviest line width (${heavyWidth.toFixed(2)}mm). This may cause visible gaps in dark areas.`;
+        recommendation = recommendedSpacing.toFixed(2);
+    } else if (currentSpacing < recommendedSpacing * 0.7 || currentSpacing > recommendedSpacing * 1.3) {
+        status = 'info';
+        message = `Current spacing: ${currentSpacing.toFixed(2)}mm. Recommended: ${recommendedSpacing.toFixed(2)}mm for best tonal range.`;
+        recommendation = recommendedSpacing.toFixed(2);
+    } else {
+        status = 'good';
+        message = `Spacing (${currentSpacing.toFixed(2)}mm) is well-matched to your line width range (${lightWidth.toFixed(2)}-${heavyWidth.toFixed(2)}mm).`;
+        recommendation = '';
+    }
+
+    // Update UI
+    if (plotterSpacingRecommendation) {
+        const colors = {
+            good: '#4CAF50',
+            info: '#2196F3',
+            warning: '#FF9800'
+        };
+
+        plotterSpacingRecommendation.innerHTML = message;
+        plotterSpacingRecommendation.style.borderLeft = `3px solid ${colors[status]}`;
+        plotterSpacingRecommendation.style.color = status === 'good' ? '#8BC34A' : (status === 'warning' ? '#FFB74D' : '#90CAF9');
+    }
+
+    // Show/hide apply button
+    if (applySpacingRecommendationButton) {
+        if (recommendation && status !== 'good') {
+            applySpacingRecommendationButton.style.display = 'block';
+            applySpacingRecommendationButton.dataset.recommendedValue = recommendation;
+            applySpacingRecommendationButton.textContent = `Apply Recommended: ${recommendation}mm`;
+        } else {
+            applySpacingRecommendationButton.style.display = 'none';
+        }
+    }
+}
+
+// Apply spacing recommendation button
+if (applySpacingRecommendationButton) {
+    applySpacingRecommendationButton.addEventListener('click', () => {
+        const recommended = applySpacingRecommendationButton.dataset.recommendedValue;
+        if (recommended && spacingInput) {
+            spacingInput.value = recommended;
+            spacingInput.dispatchEvent(new Event('input'));
+            updateSpacingRecommendation();
+        }
+    });
+}
+
+// Update spacing recommendation when line width settings change
+if (plotterLineWidthLightInput) {
+    plotterLineWidthLightInput.addEventListener('input', updateSpacingRecommendation);
+    plotterLineWidthLightInput.addEventListener('input', validateCalibrationSettings);
+}
+if (plotterLineWidthHeavyInput) {
+    plotterLineWidthHeavyInput.addEventListener('input', updateSpacingRecommendation);
+    plotterLineWidthHeavyInput.addEventListener('input', validateCalibrationSettings);
+}
+if (spacingInput) {
+    spacingInput.addEventListener('input', () => {
+        if (plotterModeToggle?.checked && plotterLineWidthMethod?.value === 'pressure') {
+            updateSpacingRecommendation();
+        }
+    });
+}
+
+// ============================================
+// CALIBRATION VALIDATION
+// ============================================
+
+/**
+ * Validate calibration settings and show warnings for potential issues
+ */
+function validateCalibrationSettings() {
+    const pressureMin = parseFloat(plotterPressureMinInput?.value || 0);
+    const pressureMax = parseFloat(plotterPressureMaxInput?.value || -0.5);
+    const widthLight = parseFloat(plotterLineWidthLightInput?.value || 0.3);
+    const widthHeavy = parseFloat(plotterLineWidthHeavyInput?.value || 1.0);
+    const useMidpoint = plotterMidpointToggle?.checked || false;
+
+    const warnings = [];
+
+    // Check if pressure range is inverted (should go from higher to lower, e.g., 0 to -0.5)
+    if (pressureMin < pressureMax) {
+        warnings.push('Pressure range appears inverted. Light pressure Z should typically be higher than heavy pressure Z.');
+    }
+
+    // Check if pressure range is too small
+    const pressureRange = Math.abs(pressureMax - pressureMin);
+    if (pressureRange < 0.1) {
+        warnings.push('Pressure range is very small (' + pressureRange.toFixed(2) + 'mm). You may not see much line width variation.');
+    }
+
+    // Check if line width range is too small
+    const widthRange = widthHeavy - widthLight;
+    if (widthRange < 0.1) {
+        warnings.push('Line width range is very small. Consider using Set Pen Size method instead.');
+    }
+
+    // Check if light width is greater than heavy width
+    if (widthLight >= widthHeavy) {
+        warnings.push('Light line width should be smaller than heavy line width.');
+    }
+
+    // If using midpoint calibration, validate those values too
+    if (useMidpoint) {
+        const pressureMid = parseFloat(plotterPressureMidInput?.value || -0.25);
+        const widthMid = parseFloat(plotterLineWidthMidInput?.value || 0.6);
+
+        // Mid pressure should be between min and max
+        if (pressureMid >= pressureMin || pressureMid <= pressureMax) {
+            // This is actually correct if pressureMin > pressureMax (typical)
+        } else if (pressureMid <= pressureMin || pressureMid >= pressureMax) {
+            warnings.push('Mid pressure should be between light and heavy pressure values.');
+        }
+
+        // Mid width should be between light and heavy
+        if (widthMid <= widthLight || widthMid >= widthHeavy) {
+            warnings.push('Mid line width should be between light and heavy values.');
+        }
+    }
+
+    // Display warnings
+    if (plotterCalibrationWarning) {
+        if (warnings.length > 0) {
+            plotterCalibrationWarning.innerHTML = warnings.map(w => '⚠️ ' + w).join('<br>');
+            plotterCalibrationWarning.style.display = 'block';
+        } else {
+            plotterCalibrationWarning.style.display = 'none';
+        }
+    }
+}
+
+// Midpoint calibration toggle
+if (plotterMidpointToggle) {
+    plotterMidpointToggle.addEventListener('change', () => {
+        updatePlotterMethodOptions();
+        validateCalibrationSettings();
+    });
+}
+
+// Pressure ramping toggle
+if (plotterPressureRampingToggle) {
+    plotterPressureRampingToggle.addEventListener('change', updatePlotterMethodOptions);
+}
+
+// Validate on pressure input changes
+if (plotterPressureMinInput) {
+    plotterPressureMinInput.addEventListener('input', validateCalibrationSettings);
+}
+if (plotterPressureMaxInput) {
+    plotterPressureMaxInput.addEventListener('input', validateCalibrationSettings);
+}
+if (plotterPressureMidInput) {
+    plotterPressureMidInput.addEventListener('input', validateCalibrationSettings);
+}
+if (plotterLineWidthMidInput) {
+    plotterLineWidthMidInput.addEventListener('input', validateCalibrationSettings);
+}
+
+// ============================================
+// PRESSURE CURVE INTERPOLATION
+// ============================================
+
+/**
+ * Calculate pressure for a given line width using calibration points
+ * Supports both 2-point (linear) and 3-point (quadratic) interpolation
+ */
+function calculatePressureForWidth(targetWidth) {
+    const pressureMin = parseFloat(plotterPressureMinInput?.value || 0);
+    const pressureMax = parseFloat(plotterPressureMaxInput?.value || -0.5);
+    const widthLight = parseFloat(plotterLineWidthLightInput?.value || 0.3);
+    const widthHeavy = parseFloat(plotterLineWidthHeavyInput?.value || 1.0);
+    const useMidpoint = plotterMidpointToggle?.checked || false;
+
+    // Clamp target width to calibrated range
+    const clampedWidth = Math.max(widthLight, Math.min(widthHeavy, targetWidth));
+
+    if (useMidpoint) {
+        // 3-point quadratic interpolation (Lagrange)
+        const pressureMid = parseFloat(plotterPressureMidInput?.value || -0.25);
+        const widthMid = parseFloat(plotterLineWidthMidInput?.value || 0.6);
+
+        // Lagrange polynomial interpolation
+        const w0 = widthLight, p0 = pressureMin;
+        const w1 = widthMid, p1 = pressureMid;
+        const w2 = widthHeavy, p2 = pressureMax;
+
+        const w = clampedWidth;
+
+        // L0(w) * p0 + L1(w) * p1 + L2(w) * p2
+        const L0 = ((w - w1) * (w - w2)) / ((w0 - w1) * (w0 - w2));
+        const L1 = ((w - w0) * (w - w2)) / ((w1 - w0) * (w1 - w2));
+        const L2 = ((w - w0) * (w - w1)) / ((w2 - w0) * (w2 - w1));
+
+        return L0 * p0 + L1 * p1 + L2 * p2;
+    } else {
+        // 2-point linear interpolation
+        const widthRange = widthHeavy - widthLight;
+        const pressureRange = pressureMax - pressureMin;
+        const widthRatio = widthRange > 0 ? (clampedWidth - widthLight) / widthRange : 0;
+
+        return pressureMin + (widthRatio * pressureRange);
+    }
+}
+
+// Export for use in G-code generator
+window.calculatePressureForWidth = calculatePressureForWidth;
+window.getPlotterCalibrationSettings = function() {
+    return {
+        useMidpoint: plotterMidpointToggle?.checked || false,
+        pressureMin: parseFloat(plotterPressureMinInput?.value || 0),
+        pressureMax: parseFloat(plotterPressureMaxInput?.value || -0.5),
+        pressureMid: parseFloat(plotterPressureMidInput?.value || -0.25),
+        widthLight: parseFloat(plotterLineWidthLightInput?.value || 0.3),
+        widthHeavy: parseFloat(plotterLineWidthHeavyInput?.value || 1.0),
+        widthMid: parseFloat(plotterLineWidthMidInput?.value || 0.6),
+        useRamping: plotterPressureRampingToggle?.checked || false,
+        rampDistance: parseFloat(plotterRampDistanceInput?.value || 2)
+    };
+};
 
 // Halftone Info Modal
 const halftoneInfoModal = document.getElementById('halftoneInfoModal');
@@ -1413,17 +1911,19 @@ const closeHalftoneInfoModal = document.getElementById('closeHalftoneInfoModal')
 
 // Removed showHalftoneInfoButton event listener
 
-if (closeHalftoneInfoModal) {
+if (closeHalftoneInfoModal && halftoneInfoModal) {
     closeHalftoneInfoModal.addEventListener('click', () => {
         halftoneInfoModal.style.display = 'none';
     });
 }
 
-halftoneInfoModal.addEventListener('click', (e) => {
-    if (e.target === halftoneInfoModal) {
-        halftoneInfoModal.style.display = 'none';
-    }
-});
+if (halftoneInfoModal) {
+    halftoneInfoModal.addEventListener('click', (e) => {
+        if (e.target === halftoneInfoModal) {
+            halftoneInfoModal.style.display = 'none';
+        }
+    });
+}
 
 function displayHalftoneInfo(halftoneData) {
     // Image dimensions
@@ -1622,12 +2122,13 @@ function showPresetModal(mode, type) {
     modal.className = 'preset-modal';
 
     if (mode === 'save') {
-        const presetList = presetNames.length > 0 
-            ? presetNames.map(name =>
-                `<div class="preset-item" data-preset="${name}">
-                    <span class="preset-name">${name}</span>
-                </div>`
-            ).join('')
+        const presetList = presetNames.length > 0
+            ? presetNames.map(name => {
+                const safeName = escapeHtml(name);
+                return `<div class="preset-item" data-preset="${safeName}">
+                    <span class="preset-name">${safeName}</span>
+                </div>`;
+            }).join('')
             : '<p style="color: #999; text-align: center; padding: 20px;">No existing presets</p>';
 
         modal.innerHTML = `
@@ -1646,12 +2147,13 @@ function showPresetModal(mode, type) {
             return;
         }
 
-        const presetList = presetNames.map(name =>
-            `<div class="preset-item">
-                <span class="preset-name">${name}</span>
-                <button class="preset-delete-btn" data-preset="${name}">Delete</button>
-            </div>`
-        ).join('');
+        const presetList = presetNames.map(name => {
+            const safeName = escapeHtml(name);
+            return `<div class="preset-item">
+                <span class="preset-name">${safeName}</span>
+                <button class="preset-delete-btn" data-preset="${safeName}">Delete</button>
+            </div>`;
+        }).join('');
 
         modal.innerHTML = `
             <h3>Load ${title}</h3>
@@ -1773,9 +2275,18 @@ function showPresetModal(mode, type) {
                 };
             }
 
-            const presets = JSON.parse(localStorage.getItem(storageKey) || '{}');
-            presets[presetName] = preset;
-            localStorage.setItem(storageKey, JSON.stringify(presets));
+            try {
+                const presets = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                presets[presetName] = preset;
+                localStorage.setItem(storageKey, JSON.stringify(presets));
+            } catch (error) {
+                if (error.name === 'QuotaExceededError' || error.code === 22) {
+                    alert('Storage quota exceeded. Unable to save preset. Try deleting some existing presets first.');
+                } else {
+                    alert('Failed to save preset: ' + error.message);
+                }
+                return;
+            }
 
             // Change button to green "Saved" state
             saveButton.textContent = 'Saved!';
@@ -1954,15 +2465,17 @@ function showDefaultPresetsModal() {
     // Build Image preset dropdown
     let imageOptions = '<option value="">None</option>';
     imagePresetNames.forEach(name => {
+        const safeName = escapeHtml(name);
         const selected = name === currentImageDefault ? 'selected' : '';
-        imageOptions += `<option value="${name}" ${selected}>${name}</option>`;
+        imageOptions += `<option value="${safeName}" ${selected}>${safeName}</option>`;
     });
 
     // Build CNC preset dropdown
     let cncOptions = '<option value="">None</option>';
     cncPresetNames.forEach(name => {
+        const safeName = escapeHtml(name);
         const selected = name === currentCncDefault ? 'selected' : '';
-        cncOptions += `<option value="${name}" ${selected}>${name}</option>`;
+        cncOptions += `<option value="${safeName}" ${selected}>${safeName}</option>`;
     });
 
     modal.innerHTML = `
@@ -2051,20 +2564,22 @@ function showExportModal() {
 
     if (imagePresetNames.length > 0) {
         presetList += '<h4 style="margin: 10px 0; color: var(--text-secondary);">Image Presets:</h4>';
-        presetList += imagePresetNames.map(name =>
-            `<div class="preset-item export-item" data-type="image" data-name="${name}">
-                <span class="preset-name">${name}</span>
-            </div>`
-        ).join('');
+        presetList += imagePresetNames.map(name => {
+            const safeName = escapeHtml(name);
+            return `<div class="preset-item export-item" data-type="image" data-name="${safeName}">
+                <span class="preset-name">${safeName}</span>
+            </div>`;
+        }).join('');
     }
 
     if (cncPresetNames.length > 0) {
         presetList += '<h4 style="margin: 10px 0; color: var(--text-secondary);">CNC Presets:</h4>';
-        presetList += cncPresetNames.map(name =>
-            `<div class="preset-item export-item" data-type="cnc" data-name="${name}">
-                <span class="preset-name">${name}</span>
-            </div>`
-        ).join('');
+        presetList += cncPresetNames.map(name => {
+            const safeName = escapeHtml(name);
+            return `<div class="preset-item export-item" data-type="cnc" data-name="${safeName}">
+                <span class="preset-name">${safeName}</span>
+            </div>`;
+        }).join('');
     }
 
     modal.innerHTML = `
@@ -2176,8 +2691,22 @@ function debounceUpdatePreview() {
 // Refactored image file handler
 function handleImageFile(file) {
     const reader = new FileReader();
+
+    reader.onerror = () => {
+        previewInfo.textContent = 'Error reading file. Please try again.';
+        previewInfo.style.color = '#dc3545';
+        generatePreviewButton.disabled = true;
+    };
+
     reader.onload = (event) => {
         const img = new Image();
+
+        img.onerror = () => {
+            previewInfo.textContent = 'Error loading image. The file may be corrupted.';
+            previewInfo.style.color = '#dc3545';
+            generatePreviewButton.disabled = true;
+        };
+
         img.onload = () => {
             currentImage = img;
 
@@ -2219,12 +2748,31 @@ function handleImageFile(file) {
     reader.readAsDataURL(file);
 }
 
-// Image upload handler
+// Supported image types
+const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
+const MAX_IMAGE_SIZE_MB = 50;
+
+// Image upload handler with validation
 imageInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (file) {
-        handleImageFile(file);
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/') && !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+        alert('Please select a valid image file (JPG, PNG, GIF, WebP, BMP, or SVG).');
+        e.target.value = ''; // Clear the input
+        return;
     }
+
+    // Validate file size
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > MAX_IMAGE_SIZE_MB) {
+        alert(`File is too large (${fileSizeMB.toFixed(1)}MB). Maximum size is ${MAX_IMAGE_SIZE_MB}MB.`);
+        e.target.value = ''; // Clear the input
+        return;
+    }
+
+    handleImageFile(file);
 });
 
 // Display original image
@@ -2421,12 +2969,15 @@ async function updateHalftonePreview() {
         // For pressure-based method, don't adjust spacing since pen width varies with pressure
     }
 
-    // Show loading message
+    // Show loading message and disable button to prevent double-clicks
     previewInfo.textContent = 'Generating preview... 0%';
     previewInfo.style.color = '#5B9BD5';
     previewProgress.textContent = '0%';
     previewProgress.style.display = 'inline';
-    
+    generatePreviewButton.disabled = true;
+    generatePreviewButton.textContent = 'Generating...';
+    if (cancelPreviewButton) cancelPreviewButton.style.display = 'inline-block';
+
     // Reset progressive arrays
     progressiveLines = [];
     progressiveElements = [];
@@ -4348,7 +4899,9 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
                         // Cutting mode: calculate depth from V-bit angle
                         const targetWidth = pointDepth * maxDepth * 2;
                         const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
-                        const depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+                        const tanValue = Math.tan(vbitHalfAngle);
+                        // Prevent division by zero - if tan is 0 or very small, use maxDepth
+                        const depth = tanValue > 0.001 ? Math.min(targetWidth / (2 * tanValue), maxDepth) : maxDepth;
                         shouldProcess = depth > minDepth;
                     }
                     
@@ -4477,7 +5030,9 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
                             // Normal cutting mode
                             const targetWidth = pointDepth * maxDepth * 2;
                             const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
-                            const depth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+                            const tanValue = Math.tan(vbitHalfAngle);
+                            // Prevent division by zero - if tan is 0 or very small, use maxDepth
+                            const depth = tanValue > 0.001 ? Math.min(targetWidth / (2 * tanValue), maxDepth) : maxDepth;
                             const z = -depth;
 
                             if (!inCut) {
@@ -4594,7 +5149,9 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
 
             // V-bit angle compensation: calculate depth from target width
             const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
-            const compensatedDepth = Math.min(targetWidth / (2 * Math.tan(vbitHalfAngle)), maxDepth);
+            const tanValue = Math.tan(vbitHalfAngle);
+            // Prevent division by zero - if tan is 0 or very small, use maxDepth
+            const compensatedDepth = tanValue > 0.001 ? Math.min(targetWidth / (2 * tanValue), maxDepth) : maxDepth;
             const depth = compensatedDepth;
 
             if (depth < minDepth) return;
@@ -5105,43 +5662,12 @@ imageToggle.addEventListener('change', () => {
     }
 });
 
-// Plotter Mode - Hide/Show cutting-specific settings
+// Plotter Mode - Sync with mode selector when checkbox changes
+// (for backward compatibility - the checkbox is now hidden but may be changed programmatically)
 plotterModeToggle.addEventListener('change', () => {
     const isPlotter = plotterModeToggle.checked;
-    
-    // CNC settings that are only for cutting
-    const cuttingOnlyGroups = [
-        document.getElementById('maxDepth-group'),
-        document.getElementById('spindleSpeed-group'),
-        document.getElementById('vbitAngle-group'),
-        document.getElementById('materialThickness-group'),
-        document.getElementById('borderCuttingFeedRate-group'),
-        document.getElementById('ramping-group'),
-        document.getElementById('rampDistance-group'),
-        document.getElementById('multiPass-group'),
-        document.getElementById('toolChange-group'),
-        document.getElementById('vbitToolNumber-group'),
-        document.getElementById('boundary-group'),
-        document.getElementById('boundaryToolSize-group'),
-        document.getElementById('boundaryPassDepth-group'),
-        document.getElementById('boundaryToolNumber-group'),
-        document.getElementById('includeBoundaryInGcode-group')
-    ];
-    
-    cuttingOnlyGroups.forEach(group => {
-        if (group) {
-            group.style.display = isPlotter ? 'none' : 'flex';
-        }
-    });
-    
-    // Show plotter-specific settings
-    const plotterLineWidthGroup = document.getElementById('plotterLineWidthMethod-group');
-    if (plotterLineWidthGroup) {
-        plotterLineWidthGroup.style.display = isPlotter ? 'flex' : 'none';
-    }
-    
-    // Update sub-option visibility based on method selection
-    updatePlotterMethodOptions();
+    // Sync mode selector with checkbox state
+    setCncMode(isPlotter ? 'plotter' : 'vcarve');
 });
 
 // Handle plotter line width method selection
@@ -5176,28 +5702,65 @@ if (plotterLineWidthHeavyInput) {
 }
 
 function updatePlotterMethodOptions() {
-    const isPlotterMode = plotterModeToggle?.checked || false;
+    // Check if we're in plotter mode (either via mode selector or checkbox)
+    const isPlotterMode = currentCncMode === 'plotter' || (plotterModeToggle?.checked || false);
     const method = plotterLineWidthMethod?.value || 'pressure';
     const isPressure = method === 'pressure';
     const isSetPenSize = method === 'setPenSize';
+    const useMidpoint = plotterMidpointToggle?.checked || false;
+    const useRamping = plotterPressureRampingToggle?.checked || false;
 
+    // Pressure method specific groups
     const pressureGroups = [
         document.getElementById('plotterPressureCalibration-group'),
         document.getElementById('plotterPressureMin-group'),
         document.getElementById('plotterLineWidthLight-group'),
         document.getElementById('plotterPressureMax-group'),
-        document.getElementById('plotterLineWidthHeavy-group')
+        document.getElementById('plotterLineWidthHeavy-group'),
+        document.getElementById('plotterMidpointCalibration-group'),
+        document.getElementById('plotterCalibrationWarning-group'),
+        document.getElementById('plotterPressureRamping-group'),
+        document.getElementById('plotterSpacingRecommendation-group')
     ];
 
     const penSizeGroup = document.getElementById('plotterPenSize-group');
+    const penLiftGroup = document.getElementById('plotterPenLift-group');
+    const midpointPressureGroup = document.getElementById('plotterPressureMid-group');
+    const midpointWidthGroup = document.getElementById('plotterLineWidthMid-group');
+    const rampDistanceGroup = document.getElementById('plotterRampDistance-group');
 
-    // Only show plotter controls if plotter mode is enabled
+    // Show pressure-specific controls when pressure method is selected
     pressureGroups.forEach(group => {
-        if (group) group.style.display = (isPlotterMode && isPressure) ? 'flex' : 'none';
+        if (group) group.style.display = isPressure ? 'flex' : 'none';
     });
 
+    // Show pen size control when Set Pen Size method is selected
     if (penSizeGroup) {
-        penSizeGroup.style.display = (isPlotterMode && isSetPenSize) ? 'flex' : 'none';
+        penSizeGroup.style.display = isSetPenSize ? 'flex' : 'none';
+    }
+
+    // Pen lift height is shown for both methods
+    if (penLiftGroup) {
+        penLiftGroup.style.display = 'flex';
+    }
+
+    // Mid-point calibration fields (only when toggle is checked and pressure method)
+    if (midpointPressureGroup) {
+        midpointPressureGroup.style.display = (isPressure && useMidpoint) ? 'flex' : 'none';
+    }
+    if (midpointWidthGroup) {
+        midpointWidthGroup.style.display = (isPressure && useMidpoint) ? 'flex' : 'none';
+    }
+
+    // Ramp distance (only when ramping toggle is checked and pressure method)
+    if (rampDistanceGroup) {
+        rampDistanceGroup.style.display = (isPressure && useRamping) ? 'flex' : 'none';
+    }
+
+    // Update spacing recommendation and calibration warnings when pressure settings change
+    if (isPlotterMode && isPressure) {
+        updateSpacingRecommendation();
+        validateCalibrationSettings();
     }
 }
 
@@ -5333,3 +5896,16 @@ toolChangeToggle.dispatchEvent(new Event('change'));
 rampingToggle.dispatchEvent(new Event('change'));
 boundaryToggle.dispatchEvent(new Event('change'));
 splitFilesToggle.dispatchEvent(new Event('change'));
+
+// Check for updates (non-blocking, runs in background)
+if (typeof VersionChecker !== 'undefined') {
+    setTimeout(() => {
+        VersionChecker.checkForUpdates().then(result => {
+            if (result) {
+                console.log('Update available:', result.version);
+            }
+        }).catch(err => {
+            console.log('Version check skipped:', err.message);
+        });
+    }, 2000); // Delay check to not interfere with app startup
+}

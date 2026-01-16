@@ -3,11 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' tauri: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://api.github.com;">
     <title>Halftone to G-code Converter</title>
     <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
+    <!-- Update Notification Banner -->
+    <div id="updateBanner" class="update-banner" style="display: none;">
+        <div class="update-banner-content">
+            <span class="update-banner-icon">&#x2B06;</span>
+            <span class="update-banner-text">
+                A new version (<strong id="latestVersionNumber"></strong>) is available!
+            </span>
+            <a id="downloadUpdateLink" href="#" target="_blank" class="update-banner-link">View Release</a>
+            <button id="dismissUpdateBtn" class="update-banner-dismiss" title="Dismiss">&times;</button>
+        </div>
+        <div id="releaseNotes" class="update-banner-notes" style="display: none;"></div>
+    </div>
+
     <div class="container">
         <div class="main-layout">
             <div class="left-side">
@@ -34,6 +47,7 @@
                 <label for="imageInput" class="upload-button full-width-button">Choose Image</label>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <button id="generatePreviewButton" disabled style="flex: 1;">Generate Halftone Preview</button>
+                    <button id="cancelPreviewButton" style="display: none; padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
                     <span id="previewProgress" style="min-width: 45px; font-weight: bold; color: #5B9BD5; display: none;"></span>
                 </div>
 
@@ -496,10 +510,24 @@
                 <p class="help-text">Save CNC machine and toolpath settings</p>
             </div>
 
-            <!-- Group 1: Tool Settings -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- CNC Mode Selector -->
+            <div class="control-group" style="margin-bottom: 15px;">
+                <label>CNC Mode:</label>
+                <div class="mode-selector" style="display: flex; gap: 0; border-radius: 6px; overflow: hidden; border: 1px solid #444;">
+                    <button id="cncModeVcarve" class="mode-btn active" style="flex: 1; padding: 10px 20px; border: none; background: #5B9BD5; color: white; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+                        V-Carve
+                    </button>
+                    <button id="cncModePlotter" class="mode-btn" style="flex: 1; padding: 10px 20px; border: none; background: #2d2d2d; color: #aaa; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+                        Plotter
+                    </button>
+                </div>
+                <p class="help-text">Switch between V-carving (cutting) and Plotter (pen drawing) modes</p>
+            </div>
+
+            <!-- Group 1: Tool Settings (V-Carve only) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="vcarve">
                 <button class="collapsible-header">
-                    <span class="group-title">Tool Settings</span>
+                    <span class="group-title">V-Bit Settings</span>
                     <span class="collapse-icon">▼</span>
                 </button>
                 <div class="collapsible-content" id="tool-settings-group">
@@ -526,10 +554,21 @@
                                 <button class="increment-btn" data-target="spindleSpeed">+</button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
 
+            <!-- Feed Rates (Common to both modes) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="common">
+                <button class="collapsible-header">
+                    <span class="group-title">Feed Rates</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="feed-rates-group">
+                    <div class="control-grid-2col">
                         <div class="control-group compact" id="cuttingFeedRate-group">
                             <label for="cuttingFeedRate">
-                                Cutting Feed Rate (mm/min) <span class="help-icon" data-tooltip="Speed during actual cutting operations">?</span>
+                                <span data-vcarve-label>Cutting</span><span data-plotter-label style="display:none;">Drawing</span> Feed Rate (mm/min) <span class="help-icon" data-tooltip="Speed during cutting/drawing operations">?</span>
                             </label>
                             <div class="input-with-buttons">
                                 <button class="decrement-btn" data-target="cuttingFeedRate">-</button>
@@ -540,7 +579,7 @@
 
                         <div class="control-group compact" id="plungeFeedRate-group">
                             <label for="plungeFeedRate">
-                                Plunge Feed Rate (mm/min) <span class="help-icon" data-tooltip="Speed when moving vertically into material">?</span>
+                                <span data-vcarve-label>Plunge</span><span data-plotter-label style="display:none;">Pen Down</span> Feed Rate (mm/min) <span class="help-icon" data-tooltip="Speed when moving vertically into material/paper">?</span>
                             </label>
                             <div class="input-with-buttons">
                                 <button class="decrement-btn" data-target="plungeFeedRate">-</button>
@@ -552,8 +591,8 @@
                 </div>
             </div>
 
-            <!-- Group 2: Work Positioning -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- Group 2: Work Positioning (Common) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="common">
                 <button class="collapsible-header">
                     <span class="group-title">Work Positioning</span>
                     <span class="collapse-icon">▼</span>
@@ -587,8 +626,8 @@
                 </div>
             </div>
 
-            <!-- Group 3: Multi-Pass Settings -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- Group 3: Multi-Pass Settings (V-Carve only) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="vcarve">
                 <button class="collapsible-header">
                     <span class="group-title">Multi-Pass Settings</span>
                     <span class="collapse-icon">▼</span>
@@ -631,8 +670,8 @@
                 </div>
             </div>
 
-            <!-- Group 4: Boundary & Tool Change -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- Group 4: Boundary & Tool Change (V-Carve only) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="vcarve">
                 <button class="collapsible-header">
                     <span class="group-title">Boundary & Tool Change</span>
                     <span class="collapse-icon">▼</span>
@@ -733,8 +772,8 @@
                 </div>
             </div>
 
-            <!-- Group 5: Toolpath Optimization -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- Group 5: Toolpath Optimization (Common) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="common">
                 <button class="collapsible-header">
                     <span class="group-title">Toolpath Optimization</span>
                     <span class="collapse-icon">▼</span>
@@ -788,8 +827,8 @@
                 </div>
             </div>
 
-            <!-- Group 6: Output Options -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- Group 6: Output Options (Common) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="common">
                 <button class="collapsible-header">
                     <span class="group-title">Output Options</span>
                     <span class="collapse-icon">▼</span>
@@ -816,19 +855,22 @@
                                 <option value="home">Return to Home (G28)</option>
                             </select>
                         </div>
+                    </div>
+                </div>
+            </div>
 
-                        <div class="control-group compact full-width" id="plotter-group">
-                            <label style="display: flex; align-items: center; gap: 10px;">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="plotterModeToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                                <span>Plotter Mode</span>
-                                <span class="help-icon" data-tooltip="Generate drawing commands instead of cutting (pen up/down)">?</span>
-                            </label>
-                        </div>
+            <!-- Plotter Settings (Plotter mode only) -->
+            <div class="collapsible-group" data-default-expanded="true" data-cnc-mode="plotter">
+                <button class="collapsible-header">
+                    <span class="group-title">Plotter Settings</span>
+                    <span class="collapse-icon">▼</span>
+                </button>
+                <div class="collapsible-content" id="plotter-settings-group">
+                    <div class="control-grid-2col">
+                        <!-- Hidden checkbox for compatibility - synced with mode selector -->
+                        <input type="checkbox" id="plotterModeToggle" style="display: none;" checked>
 
-                        <div class="control-group compact full-width" id="plotterLineWidthMethod-group" style="display: none;">
+                        <div class="control-group compact full-width" id="plotterLineWidthMethod-group">
                             <label for="plotterLineWidthMethod">
                                 Line Width Method <span class="help-icon" data-tooltip="How to vary line width for different brightness levels">?</span>
                             </label>
@@ -838,12 +880,15 @@
                             </select>
                         </div>
 
-                        <div class="control-group compact full-width sub-option" id="plotterPressureCalibration-group" style="display: none;">
-                            <label>Pressure Calibration <span class="help-icon" data-tooltip="Click to see step-by-step calibration instructions">?</span></label>
-                            <button id="calibratePressureButton" class="auto-adjust-button" style="width: 100%;">🔧 Open Calibration Guide</button>
+                        <div class="control-group compact full-width" id="plotterPressureCalibration-group" data-plotter-method="pressure">
+                            <label>Pressure Calibration <span class="help-icon" data-tooltip="Generate a test pattern to calibrate your pen pressure settings">?</span></label>
+                            <div style="display: flex; gap: 8px;">
+                                <button id="generateTestPatternButton" class="auto-adjust-button" style="flex: 1;">Generate Test Pattern</button>
+                                <button id="calibratePressureButton" class="auto-adjust-button" style="flex: 1;">Calibration Guide</button>
+                            </div>
                         </div>
 
-                        <div class="control-group compact sub-option" id="plotterPressureMin-group" style="display: none;">
+                        <div class="control-group compact" id="plotterPressureMin-group" data-plotter-method="pressure">
                             <label for="plotterPressureMin">
                                 Lightest Pressure (Z) <span class="help-icon" data-tooltip="Z-axis position for lightest pen pressure">?</span>
                             </label>
@@ -854,7 +899,7 @@
                             </div>
                         </div>
 
-                        <div class="control-group compact sub-option" id="plotterLineWidthLight-group" style="display: none;">
+                        <div class="control-group compact" id="plotterLineWidthLight-group" data-plotter-method="pressure">
                             <label for="plotterLineWidthLight">
                                 Line Width Light (mm) <span class="help-icon" data-tooltip="Line width your pen produces at lightest pressure">?</span>
                             </label>
@@ -865,7 +910,7 @@
                             </div>
                         </div>
 
-                        <div class="control-group compact sub-option" id="plotterPressureMax-group" style="display: none;">
+                        <div class="control-group compact" id="plotterPressureMax-group" data-plotter-method="pressure">
                             <label for="plotterPressureMax">
                                 Heaviest Pressure (Z) <span class="help-icon" data-tooltip="Z-axis position for heaviest pen pressure">?</span>
                             </label>
@@ -876,7 +921,7 @@
                             </div>
                         </div>
 
-                        <div class="control-group compact sub-option" id="plotterLineWidthHeavy-group" style="display: none;">
+                        <div class="control-group compact" id="plotterLineWidthHeavy-group" data-plotter-method="pressure">
                             <label for="plotterLineWidthHeavy">
                                 Line Width Heavy (mm) <span class="help-icon" data-tooltip="Maximum line width your pen produces at full pressure. For best results, match this to your spacing value to avoid gaps or overlap. (Can't be smaller than the Max Size)">?</span>
                             </label>
@@ -887,7 +932,67 @@
                             </div>
                         </div>
 
-                        <div class="control-group compact full-width sub-option" id="plotterPenSize-group" style="display: none;">
+                        <div class="control-group compact full-width" id="plotterMidpointCalibration-group" data-plotter-method="pressure">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="plotterMidpointToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Use Mid-point Calibration</span>
+                                <span class="help-icon" data-tooltip="Enable 3-point calibration for more accurate pressure curves (recommended for non-linear pens)">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterPressureMid-group" style="display: none;">
+                            <label for="plotterPressureMid">
+                                Mid Pressure (Z) <span class="help-icon" data-tooltip="Z-axis position for medium pen pressure (between light and heavy)">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterPressureMid">-</button>
+                                <input type="number" id="plotterPressureMid" min="-10" max="5" step="0.1" value="-0.25">
+                                <button class="increment-btn" data-target="plotterPressureMid">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterLineWidthMid-group" style="display: none;">
+                            <label for="plotterLineWidthMid">
+                                Line Width Mid (mm) <span class="help-icon" data-tooltip="Measured line width at the mid pressure setting">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterLineWidthMid">-</button>
+                                <input type="number" id="plotterLineWidthMid" min="0.1" max="10" step="0.1" value="0.6">
+                                <button class="increment-btn" data-target="plotterLineWidthMid">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="plotterCalibrationWarning-group" data-plotter-method="pressure">
+                            <div id="plotterCalibrationWarning" style="padding: 8px; background: #3a2a2a; border-radius: 4px; border-left: 3px solid #FF9800; font-size: 0.85em; color: #FFB74D; display: none;">
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="plotterPressureRamping-group" data-plotter-method="pressure">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="plotterPressureRampingToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Pressure Ramping</span>
+                                <span class="help-icon" data-tooltip="Gradually ramp pressure at line starts/ends for smoother transitions">?</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group compact sub-option" id="plotterRampDistance-group" style="display: none;">
+                            <label for="plotterRampDistance">
+                                Ramp Distance (mm) <span class="help-icon" data-tooltip="Distance over which to ramp pressure at line starts/ends">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterRampDistance">-</button>
+                                <input type="number" id="plotterRampDistance" min="0.5" max="20" step="0.5" value="2">
+                                <button class="increment-btn" data-target="plotterRampDistance">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="plotterPenSize-group" data-plotter-method="setPenSize" style="display: none;">
                             <label for="plotterPenSize">
                                 Pen Size (mm) <span class="help-icon" data-tooltip="Fixed pen size in mm. System generates offset paths to fill shapes based on halftone darkness. Note: Zero your Z-axis with the pen touching the paper, as Z=0 for all drawing moves.">?</span>
                             </label>
@@ -897,12 +1002,31 @@
                                 <button class="increment-btn" data-target="plotterPenSize">+</button>
                             </div>
                         </div>
+
+                        <div class="control-group compact" id="plotterPenLift-group">
+                            <label for="plotterPenLift">
+                                Pen Lift Height (mm) <span class="help-icon" data-tooltip="Z height to raise pen between lines (prevents dragging). Higher values are safer but slower.">?</span>
+                            </label>
+                            <div class="input-group">
+                                <button class="decrement-btn" data-target="plotterPenLift">-</button>
+                                <input type="number" id="plotterPenLift" min="0.5" max="20" step="0.5" value="2">
+                                <button class="increment-btn" data-target="plotterPenLift">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact full-width" id="plotterSpacingRecommendation-group" data-plotter-method="pressure">
+                            <label>Spacing Recommendation <span class="help-icon" data-tooltip="Suggested spacing based on your line width settings to avoid gaps or overlap">?</span></label>
+                            <div id="plotterSpacingRecommendation" style="padding: 8px; background: #2a2a2a; border-radius: 4px; font-size: 0.9em; color: #aaa;">
+                                Configure line width settings above to see recommendations.
+                            </div>
+                            <button id="applySpacingRecommendation" class="auto-adjust-button" style="margin-top: 5px; display: none;">Apply Recommended Spacing</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Group 7: File Splitting -->
-            <div class="collapsible-group" data-default-expanded="false">
+            <!-- Group 7: File Splitting (Common) -->
+            <div class="collapsible-group" data-default-expanded="false" data-cnc-mode="common">
                 <button class="collapsible-header">
                     <span class="group-title">File Splitting</span>
                     <span class="collapse-icon">▼</span>
@@ -1023,6 +1147,18 @@
                                             <span style="color: #999; font-size: 0.9em; margin-right: 5px;">Zoom:</span>
                                             <button id="vizZoomInButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">+</button>
                                             <button id="vizZoomOutButton" style="padding: 6px 16px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">−</button>
+                                        </div>
+                                    </div>
+                                    <!-- Pressure Legend for Plotter Mode (hidden by default) -->
+                                    <div id="vizPressureLegend" style="display: none; padding: 10px; background: #2d2d2d; border-radius: 4px; margin-bottom: 10px;">
+                                        <div style="display: flex; align-items: center; gap: 15px;">
+                                            <span style="color: #999; font-size: 0.9em;">Pressure:</span>
+                                            <div style="display: flex; align-items: center; gap: 5px;">
+                                                <span style="color: #88ddff; font-size: 0.85em;">Light</span>
+                                                <div style="width: 150px; height: 12px; background: linear-gradient(to right, #88ddff, #4488cc, #1144aa); border-radius: 2px;"></div>
+                                                <span style="color: #1144aa; font-size: 0.85em;">Heavy</span>
+                                            </div>
+                                            <button id="vizTogglePressureColors" style="padding: 5px 12px; background: #607D8B; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Toggle Colors</button>
                                         </div>
                                     </div>
                                     <div id="gcodeVisualizerContainer" style="width: 100%; height: 550px; border: 1px solid #444; border-radius: 4px; background: #1a1a1a;"></div>
@@ -1188,6 +1324,7 @@
     <script src="src/ui/ace-gcode-viewer.js"></script>
     <script src="src/ui/collapsible-groups.js"></script>
     <script src="src/ui/tooltip-handler.js"></script>
+    <script src="src/ui/version-checker.js"></script>
 
     <!-- Three.js for 3D Visualization -->
     <script src="lib/three-js/three.js"></script>

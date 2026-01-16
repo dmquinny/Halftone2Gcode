@@ -35,18 +35,23 @@ class GcodeStreamer {
         if (window.__TAURI__) {
             // Tauri mode - use native file streaming
             // In Tauri v2, invoke is on __TAURI_INTERNALS__.invoke
-            const invoke = window.__TAURI_INTERNALS__.invoke;
-            await invoke('start_gcode_stream', { filePath: actualFilePath });
-            this.isStreaming = true;
-            this.lineCount = 0;
-            this.buffer = [];
+            try {
+                const invoke = window.__TAURI_INTERNALS__.invoke;
+                await invoke('start_gcode_stream', { filePath: actualFilePath });
+                this.isStreaming = true;
+                this.lineCount = 0;
+                this.buffer = [];
 
-            // Write header to first file if provided
-            if (this.headerLines.length > 0) {
-                for (const line of this.headerLines) {
-                    this.buffer.push(line);
+                // Write header to first file if provided
+                if (this.headerLines.length > 0) {
+                    for (const line of this.headerLines) {
+                        this.buffer.push(line);
+                    }
+                    await this.flush();
                 }
-                await this.flush();
+            } catch (error) {
+                console.error('Failed to start G-code stream:', error);
+                throw new Error(`Failed to start file stream: ${error.message || error}`);
             }
         } else {
             // Browser mode - collect in memory (fallback)
@@ -85,44 +90,45 @@ class GcodeStreamer {
         const contentLineCount = this.currentFileLineCount - this.headerLines.length;
         if (contentLineCount < this.maxLinesPerFile) return false;
 
-        console.log(`Splitting file at ${this.currentFileLineCount} lines (${contentLineCount} content lines)`);
-
-        // Write footer to current file
-        if (this.footerLines.length > 0) {
-            for (const line of this.footerLines) {
-                this.buffer.push(line);
+        try {
+            // Write footer to current file
+            if (this.footerLines.length > 0) {
+                for (const line of this.footerLines) {
+                    this.buffer.push(line);
+                }
+                await this.flush();
             }
-            await this.flush();
-        }
 
-        // Close current file
-        if (window.__TAURI__) {
-            const invoke = window.__TAURI_INTERNALS__.invoke;
-            await invoke('finish_gcode_stream');
-        }
-
-        // Start next file
-        this.currentFilePartNumber++;
-        this.currentFileLineCount = 0;
-        const nextFilePath = this.getFilePathForPart(this.currentFilePartNumber);
-        this.generatedFiles.push(nextFilePath);
-
-        console.log(`Starting new file part ${this.currentFilePartNumber}: ${nextFilePath}`);
-
-        if (window.__TAURI__) {
-            const invoke = window.__TAURI_INTERNALS__.invoke;
-            await invoke('start_gcode_stream', { filePath: nextFilePath });
-        }
-
-        // Write header to new file
-        if (this.headerLines.length > 0) {
-            for (const line of this.headerLines) {
-                this.buffer.push(line);
+            // Close current file
+            if (window.__TAURI__) {
+                const invoke = window.__TAURI_INTERNALS__.invoke;
+                await invoke('finish_gcode_stream');
             }
-            await this.flush();
-        }
 
-        return true;
+            // Start next file
+            this.currentFilePartNumber++;
+            this.currentFileLineCount = 0;
+            const nextFilePath = this.getFilePathForPart(this.currentFilePartNumber);
+            this.generatedFiles.push(nextFilePath);
+
+            if (window.__TAURI__) {
+                const invoke = window.__TAURI_INTERNALS__.invoke;
+                await invoke('start_gcode_stream', { filePath: nextFilePath });
+            }
+
+            // Write header to new file
+            if (this.headerLines.length > 0) {
+                for (const line of this.headerLines) {
+                    this.buffer.push(line);
+                }
+                await this.flush();
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Failed to split G-code file:', error);
+            throw new Error(`Failed to split file: ${error.message || error}`);
+        }
     }
 
     async writeLine(line) {
@@ -156,8 +162,13 @@ class GcodeStreamer {
 
         if (window.__TAURI__) {
             // Write to file via Tauri
-            const invoke = window.__TAURI_INTERNALS__.invoke;
-            await invoke('write_gcode_chunk', { chunk });
+            try {
+                const invoke = window.__TAURI_INTERNALS__.invoke;
+                await invoke('write_gcode_chunk', { chunk });
+            } catch (error) {
+                console.error('Failed to write G-code chunk:', error);
+                throw new Error(`Failed to write to file: ${error.message || error}`);
+            }
         }
 
         // Clear buffer
@@ -182,17 +193,23 @@ class GcodeStreamer {
 
         if (window.__TAURI__) {
             // Close file via Tauri
-            const invoke = window.__TAURI_INTERNALS__.invoke;
-            const path = await invoke('finish_gcode_stream');
-            this.isStreaming = false;
+            try {
+                const invoke = window.__TAURI_INTERNALS__.invoke;
+                const path = await invoke('finish_gcode_stream');
+                this.isStreaming = false;
 
-            // Return information about all generated files
-            return {
-                path,
-                lineCount: this.lineCount,
-                files: this.generatedFiles,
-                fileCount: this.generatedFiles.length
-            };
+                // Return information about all generated files
+                return {
+                    path,
+                    lineCount: this.lineCount,
+                    files: this.generatedFiles,
+                    fileCount: this.generatedFiles.length
+                };
+            } catch (error) {
+                this.isStreaming = false;
+                console.error('Failed to finish G-code stream:', error);
+                throw new Error(`Failed to close file: ${error.message || error}`);
+            }
         } else {
             // Browser mode - return collected data
             this.isStreaming = false;

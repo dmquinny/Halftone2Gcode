@@ -106,6 +106,16 @@ async function generateGcodeWithStreaming() {
         const plotterPenSize = parseFloat(plotterPenSizeInput?.value || 0.5);
         const plotterLineWidthLight = parseFloat(plotterLineWidthLightInput?.value || 0.3);
         const plotterLineWidthHeavy = parseFloat(plotterLineWidthHeavyInput?.value || 1.0);
+        const plotterPenLift = parseFloat(document.getElementById('plotterPenLift')?.value || 2);
+
+        // Get advanced plotter calibration settings
+        const plotterCalibration = window.getPlotterCalibrationSettings ? window.getPlotterCalibrationSettings() : {
+            useMidpoint: false,
+            pressureMid: -0.25,
+            widthMid: 0.6,
+            useRamping: false,
+            rampDistance: 2
+        };
 
         // Get file splitting parameters
         const splitFiles = splitFilesToggle?.checked || false;
@@ -177,6 +187,8 @@ async function generateGcodeWithStreaming() {
             plotterPenSize,
             plotterLineWidthLight,
             plotterLineWidthHeavy,
+            plotterPenLift,
+            plotterCalibration,
             outputUnits,
             streamer  // Pass streamer as last parameter
         );
@@ -217,8 +229,7 @@ async function generateGcodeWithStreaming() {
                 window.loadGCodeIntoVisualizer(null, filePath);
             }
         } catch (error) {
-            console.error('Failed to load G-code into Monaco:', error);
-            console.log('Error details:', error);
+            console.error('Failed to load G-code into editor:', error);
         }
 
         // Add Open File button to the G-code info area

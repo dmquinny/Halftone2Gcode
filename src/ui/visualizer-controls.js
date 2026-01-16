@@ -59,6 +59,17 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         `;
 
+                        // Configure plotter mode if stored in pending data
+                        if (pendingGCodeData.plotterMode) {
+                            window.gcodeVisualizer.setPlotterMode(
+                                true,
+                                pendingGCodeData.pressureMin,
+                                pendingGCodeData.pressureMax
+                            );
+                        } else {
+                            window.gcodeVisualizer.setPlotterMode(false);
+                        }
+
                         // Load the G-code (Three.js canvas is already in the container)
                         if (pendingGCodeData.filePath) {
                             await window.gcodeVisualizer.loadGCodeFromFile(
@@ -87,6 +98,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Hide load prompt, show controls (after G-code is loaded)
                     vizLoadPrompt.style.display = 'none';
                     document.getElementById('vizControls').style.display = 'block';
+
+                    // Update pressure legend visibility
+                    if (typeof updatePressureLegendVisibility === 'function') {
+                        updatePressureLegendVisibility();
+                    }
                 }
             }
         });
@@ -259,13 +275,37 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
     const imageHeight = heightInput ? parseFloat(heightInput.value) : null;
     const materialThickness = thicknessInput ? parseFloat(thicknessInput.value) : null;
 
+    // Get plotter mode settings for pressure visualization
+    const plotterModeToggle = document.getElementById('plotterModeToggle');
+    const plotterMethod = document.getElementById('plotterLineWidthMethod');
+    const isPlotterMode = plotterModeToggle?.checked || false;
+    const isPressureMethod = plotterMethod?.value === 'pressure';
+
+    // Get pressure range for visualization
+    const pressureMinInput = document.getElementById('plotterPressureMin');
+    const pressureMaxInput = document.getElementById('plotterPressureMax');
+    const pressureMin = parseFloat(pressureMinInput?.value || 0);
+    const pressureMax = parseFloat(pressureMaxInput?.value || -0.5);
+
     // Check if visualizer is loaded
     if (window.gcodeVisualizer && visualizerLoaded) {
+        // Configure plotter mode before loading G-code
+        if (isPlotterMode && isPressureMethod) {
+            window.gcodeVisualizer.setPlotterMode(true, pressureMin, pressureMax);
+        } else {
+            window.gcodeVisualizer.setPlotterMode(false);
+        }
+
         // Use file path if provided (streaming mode), otherwise use text content
         if (filePath) {
             window.gcodeVisualizer.loadGCodeFromFile(filePath, imageWidth, imageHeight, materialThickness);
         } else if (gcodeText) {
             window.gcodeVisualizer.loadGCode(gcodeText, imageWidth, imageHeight, materialThickness);
+        }
+
+        // Update pressure legend visibility
+        if (typeof updatePressureLegendVisibility === 'function') {
+            updatePressureLegendVisibility();
         }
     } else {
         // Visualizer not loaded yet - store data for later
@@ -274,10 +314,54 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
             filePath: filePath,
             imageWidth: imageWidth,
             imageHeight: imageHeight,
-            materialThickness: materialThickness
+            materialThickness: materialThickness,
+            plotterMode: isPlotterMode && isPressureMethod,
+            pressureMin: pressureMin,
+            pressureMax: pressureMax
         };
     }
 }
 
 // Export for use in other scripts
 window.loadGCodeIntoVisualizer = loadGCodeIntoVisualizer;
+
+// Show/hide pressure legend based on plotter mode
+function updatePressureLegendVisibility() {
+    const legend = document.getElementById('vizPressureLegend');
+    if (!legend) return;
+
+    const plotterModeToggle = document.getElementById('plotterModeToggle');
+    const plotterMethod = document.getElementById('plotterLineWidthMethod');
+    const isPlotterMode = plotterModeToggle?.checked || false;
+    const isPressureMethod = plotterMethod?.value === 'pressure';
+
+    legend.style.display = (isPlotterMode && isPressureMethod && visualizerLoaded) ? 'block' : 'none';
+}
+
+// Wire up pressure legend toggle button
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.getElementById('vizTogglePressureColors');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            if (window.gcodeVisualizer && typeof window.gcodeVisualizer.togglePressureColors === 'function') {
+                const enabled = window.gcodeVisualizer.togglePressureColors();
+                toggleBtn.textContent = enabled ? 'Hide Colors' : 'Show Colors';
+                toggleBtn.style.background = enabled ? '#607D8B' : '#455A64';
+            }
+        });
+    }
+
+    // Update legend visibility when plotter settings change
+    const plotterModeToggle = document.getElementById('plotterModeToggle');
+    const plotterMethod = document.getElementById('plotterLineWidthMethod');
+
+    if (plotterModeToggle) {
+        plotterModeToggle.addEventListener('change', updatePressureLegendVisibility);
+    }
+    if (plotterMethod) {
+        plotterMethod.addEventListener('change', updatePressureLegendVisibility);
+    }
+});
+
+// Export for dynamic updates
+window.updatePressureLegendVisibility = updatePressureLegendVisibility;

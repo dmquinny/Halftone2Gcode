@@ -96,7 +96,40 @@ function generateGcodeFooter(safeHeight, plotterMode, outputUnits = 'mm') {
     return footerLines;
 }
 
-async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, depthPerPass = 0.1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, outputUnits = 'mm', streamer) {
+async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, depthPerPass = 0.1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, plotterPenLift = 2, plotterCalibration = null, outputUnits = 'mm', streamer) {
+
+    // Extract advanced calibration settings
+    const useMidpointCalibration = plotterCalibration?.useMidpoint || false;
+    const plotterPressureMid = plotterCalibration?.pressureMid || -0.25;
+    const plotterLineWidthMid = plotterCalibration?.widthMid || 0.6;
+    const usePressureRamping = plotterCalibration?.useRamping || false;
+    const plotterRampDistance = plotterCalibration?.rampDistance || 2;
+
+    // Pressure interpolation function (supports 2-point linear or 3-point quadratic)
+    const interpolatePressure = (targetWidth) => {
+        // Clamp target width to calibrated range
+        const clampedWidth = Math.max(plotterLineWidthLight, Math.min(plotterLineWidthHeavy, targetWidth));
+
+        if (useMidpointCalibration) {
+            // 3-point Lagrange interpolation for quadratic curve
+            const w0 = plotterLineWidthLight, p0 = plotterPressureMin;
+            const w1 = plotterLineWidthMid, p1 = plotterPressureMid;
+            const w2 = plotterLineWidthHeavy, p2 = plotterPressureMax;
+            const w = clampedWidth;
+
+            const L0 = ((w - w1) * (w - w2)) / ((w0 - w1) * (w0 - w2));
+            const L1 = ((w - w0) * (w - w2)) / ((w1 - w0) * (w1 - w2));
+            const L2 = ((w - w0) * (w - w1)) / ((w2 - w0) * (w2 - w1));
+
+            return L0 * p0 + L1 * p1 + L2 * p2;
+        } else {
+            // 2-point linear interpolation
+            const widthRange = plotterLineWidthHeavy - plotterLineWidthLight;
+            const pressureRange = plotterPressureMax - plotterPressureMin;
+            const widthRatio = widthRange > 0 ? (clampedWidth - plotterLineWidthLight) / widthRange : 0;
+            return plotterPressureMin + (widthRatio * pressureRange);
+        }
+    };
 
     // Unit conversion setup
     const isInchMode = outputUnits === 'inch';
@@ -292,89 +325,51 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             const actualLineWidth = point.width !== undefined ? point.width :
                                 (point.depth * (halftoneData.maxSize || maxDepth * 2));
 
-                            // Interpolate Z pressure to achieve that line width
-                            // Linear interpolation between (plotterLineWidthLight, plotterPressureMin) and (plotterLineWidthHeavy, plotterPressureMax)
-                            const widthRange = plotterLineWidthHeavy - plotterLineWidthLight;
-                            const pressureRange = plotterPressureMax - plotterPressureMin;
-                            const widthRatio = widthRange > 0 ? (actualLineWidth - plotterLineWidthLight) / widthRange : 0;
-                            // Clamp widthRatio to 0-1 range
-                            const clampedRatio = Math.max(0, Math.min(1, widthRatio));
-                            depth = plotterPressureMin + (clampedRatio * pressureRange);
+                            // Use the interpolation function (supports linear or quadratic)
+                            depth = interpolatePressure(actualLineWidth);
                             lineWidth = actualLineWidth;
 
                             if (i === 0) {
+                                // Start of line - rapid move to position
                                 const cmd = buildMove('G0', x, y, null, null);
                                 if (cmd) await writeLine(cmd);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
                                 totalTime += (rapidDist / rapidRate) * 60;
+
+                                // Apply pressure ramping at line start if enabled
+                                if (usePressureRamping && processedLine.length > 1) {
+                                    // Start with light pressure and ramp to target
+                                    const startPressure = plotterPressureMin; // Light pressure
+                                    const cmd2 = buildMove('G1', null, null, startPressure, plungeFeedRate);
+                                    if (cmd2) await writeLine(cmd2);
+                                }
                             } else {
-                                const cmd = buildMove('G1', x, y, depth, cuttingFeedRate);
-                                if (cmd) await writeLine(cmd);
-                            }
-                        } else {
-                            // Set Pen Size method: draw multiple passes based on actual line width
-                            const penSize = plotterPenSize;
-                            // Get actual line width from halftone data
-                            const actualLineWidth = point.width !== undefined ? point.width :
-                                (point.depth * (halftoneData.maxSize || maxDepth * 2));
-                            // Calculate number of passes needed to cover the line width
-                            const numPasses = Math.max(1, Math.ceil(actualLineWidth / penSize));
+                                // Apply pressure ramping if enabled
+                                let effectiveDepth = depth;
+                                if (usePressureRamping) {
+                                    // Calculate distance from line start and end
+                                    const distFromStart = i * pixelsToMM; // Approximate
+                                    const distFromEnd = (processedLine.length - 1 - i) * pixelsToMM;
 
-                            for (let offsetPass = 0; offsetPass < numPasses; offsetPass++) {
-                                // Center the passes around the line center
-                                const offsetDist = (offsetPass - (numPasses - 1) / 2) * penSize;
-
-                                // Calculate perpendicular offset
-                                let offsetX = x;
-                                let offsetY = y;
-                                if (i > 0) {
-                                    const prevPoint = line[i - 1];
-                                    const prevX = (prevPoint.x * pixelsToMM) + xOffset;
-                                    const prevY = (prevPoint.y * pixelsToMM) + yOffset;
-                                    const dx = x - prevX;
-                                    const dy = y - prevY;
-                                    const dist = Math.sqrt(dx * dx + dy * dy);
-                                    if (dist > 0.01) {
-                                        const perpX = -dy / dist;
-                                        const perpY = dx / dist;
-                                        offsetX += perpX * offsetDist;
-                                        offsetY += perpY * offsetDist;
+                                    if (distFromStart < plotterRampDistance) {
+                                        // Ramp up from light pressure
+                                        const rampRatio = distFromStart / plotterRampDistance;
+                                        effectiveDepth = plotterPressureMin + (depth - plotterPressureMin) * rampRatio;
+                                    } else if (distFromEnd < plotterRampDistance) {
+                                        // Ramp down to light pressure
+                                        const rampRatio = distFromEnd / plotterRampDistance;
+                                        effectiveDepth = plotterPressureMin + (depth - plotterPressureMin) * rampRatio;
                                     }
                                 }
 
-                                if (i === 0 && offsetPass === 0) {
-                                    // First point of first pass: rapid move, then pen down
-                                    const cmd1 = buildMove('G0', offsetX, offsetY, null, null);
-                                    if (cmd1) await writeLine(cmd1);
-                                    const cmd2 = buildMove('G1', null, null, 0, plungeFeedRate);
-                                    if (cmd2) await writeLine(cmd2);
-                                    rapidMoveCount++;
-                                    const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
-                                    totalTime += (rapidDist / rapidRate) * 60;
-                                } else if (offsetPass > 0 && i === 0) {
-                                    // First point of subsequent passes: lift pen, rapid move, lower pen
-                                    const cmd1 = buildMove('G0', null, null, safeHeight, null);
-                                    if (cmd1) await writeLine(cmd1);
-                                    const cmd2 = buildMove('G0', offsetX, offsetY, null, null);
-                                    if (cmd2) await writeLine(cmd2);
-                                    const cmd3 = buildMove('G1', null, null, 0, plungeFeedRate);
-                                    if (cmd3) await writeLine(cmd3);
-                                    rapidMoveCount++;
-                                    const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
-                                    totalTime += (rapidDist / rapidRate) * 60;
-                                } else {
-                                    // Drawing move with Z at paper level
-                                    const cmd = buildMove('G1', offsetX, offsetY, 0, cuttingFeedRate);
-                                    if (cmd) await writeLine(cmd);
-                                    const drawDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
-                                    totalCuttingDistance += drawDist;
-                                    totalTime += (drawDist / cuttingFeedRate) * 60;
-                                }
-
-                                lastX = offsetX;
-                                lastY = offsetY;
+                                const cmd = buildMove('G1', x, y, effectiveDepth, cuttingFeedRate);
+                                if (cmd) await writeLine(cmd);
                             }
+                        } else {
+                            // Set Pen Size method - skip point-by-point processing
+                            // Optimized handling is done at the line level after this loop
+                            continue;
                         }
                     } else {
                         // Cutting mode
@@ -444,19 +439,119 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                     }
                 }
 
+                // Optimized Set Pen Size method: process entire line for each pass
+                // This minimizes pen lifts by drawing complete parallel lines
+                if (plotterMode && plotterLineWidthMethod !== 'pressure') {
+                    const penSize = plotterPenSize;
+
+                    // Calculate the maximum number of passes needed for this line
+                    // based on the widest point in the line
+                    let maxPasses = 1;
+                    for (const point of processedLine) {
+                        const actualLineWidth = point.width !== undefined ? point.width :
+                            (point.depth * (halftoneData.maxSize || maxDepth * 2));
+                        const numPasses = Math.max(1, Math.ceil(actualLineWidth / penSize));
+                        maxPasses = Math.max(maxPasses, numPasses);
+                    }
+
+                    // Process each offset pass for the entire line
+                    for (let offsetPass = 0; offsetPass < maxPasses; offsetPass++) {
+                        // Alternate direction for bidirectional optimization
+                        const drawReverse = offsetPass % 2 === 1;
+                        const passPoints = drawReverse ? [...processedLine].reverse() : processedLine;
+
+                        let passStarted = false;
+
+                        for (let i = 0; i < passPoints.length; i++) {
+                            const point = passPoints[i];
+                            const actualLineWidth = point.width !== undefined ? point.width :
+                                (point.depth * (halftoneData.maxSize || maxDepth * 2));
+                            const numPassesForPoint = Math.max(1, Math.ceil(actualLineWidth / penSize));
+
+                            // Skip this point if it doesn't need this many passes
+                            if (offsetPass >= numPassesForPoint) {
+                                if (passStarted) {
+                                    // Lift pen when skipping points mid-pass
+                                    const cmd = buildMove('G0', null, null, plotterPenLift, null);
+                                    if (cmd) await writeLine(cmd);
+                                    passStarted = false;
+                                }
+                                continue;
+                            }
+
+                            const x = (point.x * pixelsToMM) + xOffset;
+                            const y = (halftoneData.height - (point.y * pixelsToMM)) + yOffset;
+
+                            // Calculate perpendicular offset
+                            const offsetDist = (offsetPass - (numPassesForPoint - 1) / 2) * penSize;
+                            let offsetX = x;
+                            let offsetY = y;
+
+                            if (i > 0) {
+                                const prevIdx = drawReverse ? i + 1 : i - 1;
+                                if (prevIdx >= 0 && prevIdx < passPoints.length) {
+                                    const prevPoint = passPoints[prevIdx < i ? prevIdx : Math.max(0, i - 1)];
+                                    const prevX = (prevPoint.x * pixelsToMM) + xOffset;
+                                    const prevY = (prevPoint.y * pixelsToMM) + yOffset;
+                                    const dx = x - prevX;
+                                    const dy = y - prevY;
+                                    const dist = Math.sqrt(dx * dx + dy * dy);
+                                    if (dist > 0.01) {
+                                        const perpX = -dy / dist;
+                                        const perpY = dx / dist;
+                                        offsetX += perpX * offsetDist;
+                                        offsetY += perpY * offsetDist;
+                                    }
+                                }
+                            }
+
+                            if (!passStarted) {
+                                // Start of pass: rapid move, then pen down
+                                const cmd1 = buildMove('G0', offsetX, offsetY, null, null);
+                                if (cmd1) await writeLine(cmd1);
+                                const cmd2 = buildMove('G1', null, null, 0, plungeFeedRate);
+                                if (cmd2) await writeLine(cmd2);
+                                rapidMoveCount++;
+                                const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
+                                totalTime += (rapidDist / rapidRate) * 60;
+                                passStarted = true;
+                            } else {
+                                // Continue drawing
+                                const cmd = buildMove('G1', offsetX, offsetY, 0, cuttingFeedRate);
+                                if (cmd) await writeLine(cmd);
+                                const drawDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
+                                totalCuttingDistance += drawDist;
+                                totalTime += (drawDist / cuttingFeedRate) * 60;
+                            }
+
+                            lastX = offsetX;
+                            lastY = offsetY;
+                        }
+
+                        // Lift pen at end of pass
+                        if (passStarted) {
+                            const cmd = buildMove('G0', null, null, plotterPenLift, null);
+                            if (cmd) await writeLine(cmd);
+                            lastZ = plotterPenLift;
+                            totalTime += (plotterPenLift / rapidRate) * 60;
+                        }
+                    }
+                }
+
                 // Retract at end of line
                 if (!plotterMode) {
                     const cmd = buildMove('G0', null, null, safeHeight, null);
                     if (cmd) await writeLine(cmd);
                     lastZ = safeHeight;
                     totalTime += ((safeHeight + Math.abs(lastZ)) / rapidRate) * 60;
-                } else if (plotterMode) {
-                    // Lift pen to avoid dragging between lines (2mm lift)
-                    const cmd = buildMove('G0', null, null, 2, null);
+                } else if (plotterMode && plotterLineWidthMethod === 'pressure') {
+                    // Lift pen to avoid dragging between lines (only for pressure method)
+                    const cmd = buildMove('G0', null, null, plotterPenLift, null);
                     if (cmd) await writeLine(cmd);
-                    lastZ = 2;
-                    totalTime += (2 / rapidRate) * 60;
+                    lastZ = plotterPenLift;
+                    totalTime += (plotterPenLift / rapidRate) * 60;
                 }
+                // Note: Set Pen Size method already lifts pen after each pass above
             }
         }
 
@@ -479,13 +574,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         // element.size contains the actual size in mm from the halftone
                         const actualLineWidth = element.size || (element.depth * (halftoneData.maxSize || maxDepth * 2));
 
-                        // Interpolate Z pressure to achieve that line width
-                        const widthRange = plotterLineWidthHeavy - plotterLineWidthLight;
-                        const pressureRange = plotterPressureMax - plotterPressureMin;
-                        const widthRatio = widthRange > 0 ? (actualLineWidth - plotterLineWidthLight) / widthRange : 0;
-                        // Clamp widthRatio to 0-1 range
-                        const clampedRatio = Math.max(0, Math.min(1, widthRatio));
-                        depth = plotterPressureMin + (clampedRatio * pressureRange);
+                        // Use the interpolation function (supports linear or quadratic)
+                        depth = interpolatePressure(actualLineWidth);
 
                         const cmd1 = buildMove('G0', x, y, null, null);
                         if (cmd1) await writeLine(cmd1);
@@ -518,7 +608,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
 
                                 if (pathIndex > 0) {
                                     // Lift pen between paths
-                                    const cmd1 = buildMove('G0', null, null, safeHeight, null);
+                                    const cmd1 = buildMove('G0', null, null, plotterPenLift, null);
                                     if (cmd1) await writeLine(cmd1);
                                 }
 
@@ -562,7 +652,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                     if (cornerIndex === 0) {
                                         if (pathIndex > 0) {
                                             // Lift pen between paths
-                                            const cmd1 = buildMove('G0', null, null, safeHeight, null);
+                                            const cmd1 = buildMove('G0', null, null, plotterPenLift, null);
                                             if (cmd1) await writeLine(cmd1);
                                         }
                                         const cmd2 = buildMove('G0', corner.x, corner.y, null, null);
@@ -586,7 +676,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             }
                         }
                         // Lift pen after completing all paths for this element
-                        const cmd = buildMove('G0', null, null, safeHeight, null);
+                        const cmd = buildMove('G0', null, null, plotterPenLift, null);
                         if (cmd) await writeLine(cmd);
                     }
                 } else {
