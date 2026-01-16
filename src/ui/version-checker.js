@@ -4,7 +4,7 @@
  */
 
 const VersionChecker = (function() {
-    const CURRENT_VERSION = '1.5.1';
+    const CURRENT_VERSION = '1.5.2';
     const GITHUB_REPO = 'dmquinny/Halftone2Gcode';
     const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
     const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
