@@ -8,8 +8,6 @@ const VersionChecker = (function() {
     const GITHUB_REPO = 'dmquinny/Halftone2Gcode';
     const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
     const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
-    const CHECK_INTERVAL = 24 * 60 * 60 * 1000; // Check once per day
-    const STORAGE_KEY = 'lastVersionCheck';
     const DISMISSED_VERSION_KEY = 'dismissedVersion';
 
     /**
@@ -27,21 +25,6 @@ const VersionChecker = (function() {
             if (p1 < p2) return -1;
         }
         return 0;
-    }
-
-    /**
-     * Check if we should check for updates (based on time interval)
-     */
-    function shouldCheckForUpdates() {
-        try {
-            const lastCheck = localStorage.getItem(STORAGE_KEY);
-            if (!lastCheck) return true;
-
-            const lastCheckTime = parseInt(lastCheck, 10);
-            return Date.now() - lastCheckTime > CHECK_INTERVAL;
-        } catch (e) {
-            return true;
-        }
     }
 
     /**
@@ -68,65 +51,176 @@ const VersionChecker = (function() {
     }
 
     /**
-     * Update the last check timestamp
+     * Show the update dialog
      */
-    function updateLastCheckTime() {
-        try {
-            localStorage.setItem(STORAGE_KEY, Date.now().toString());
-        } catch (e) {
-            // Ignore storage errors
+    function showUpdateDialog(latestVersion, releaseUrl, releaseNotes) {
+        // Remove existing dialog if present
+        const existingDialog = document.getElementById('updateDialog');
+        if (existingDialog) {
+            existingDialog.remove();
         }
+
+        // Parse release notes - extract just the key points
+        let formattedNotes = '';
+        if (releaseNotes) {
+            // Extract bullet points or first few lines
+            const lines = releaseNotes.split('\n').filter(line => line.trim());
+            const bulletPoints = lines.filter(line =>
+                line.trim().startsWith('-') ||
+                line.trim().startsWith('*') ||
+                line.trim().startsWith('•')
+            ).slice(0, 5);
+
+            if (bulletPoints.length > 0) {
+                formattedNotes = bulletPoints.map(line =>
+                    `<div style="margin: 4px 0; padding-left: 10px;">${line.trim()}</div>`
+                ).join('');
+            } else {
+                // Just show first 300 chars
+                const truncated = releaseNotes.substring(0, 300);
+                formattedNotes = `<div style="white-space: pre-wrap;">${truncated}${releaseNotes.length > 300 ? '...' : ''}</div>`;
+            }
+        }
+
+        // Create dialog HTML
+        const dialogHTML = `
+            <div id="updateDialog" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10002;
+            ">
+                <div style="
+                    background: #2d2d2d;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                    max-width: 450px;
+                    width: 90%;
+                    overflow: hidden;
+                ">
+                    <!-- Header -->
+                    <div style="
+                        background: linear-gradient(135deg, #1e5799 0%, #2989d8 100%);
+                        padding: 20px;
+                        text-align: center;
+                    ">
+                        <div style="font-size: 2em; margin-bottom: 8px;">&#x2B06;</div>
+                        <h2 style="margin: 0; color: white; font-size: 1.3em;">Update Available</h2>
+                    </div>
+
+                    <!-- Content -->
+                    <div style="padding: 20px;">
+                        <div style="text-align: center; margin-bottom: 15px;">
+                            <span style="color: #999;">Current: v${CURRENT_VERSION}</span>
+                            <span style="color: #666; margin: 0 10px;">→</span>
+                            <span style="color: #7fdbff; font-weight: bold;">New: v${latestVersion}</span>
+                        </div>
+
+                        ${formattedNotes ? `
+                            <div style="
+                                background: #1e1e1e;
+                                border-radius: 4px;
+                                padding: 12px;
+                                margin-bottom: 15px;
+                                max-height: 150px;
+                                overflow-y: auto;
+                                font-size: 0.9em;
+                                color: #ccc;
+                            ">
+                                <div style="color: #999; font-size: 0.85em; margin-bottom: 8px;">What's New:</div>
+                                ${formattedNotes}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- Buttons -->
+                    <div style="
+                        padding: 15px 20px;
+                        background: #252525;
+                        display: flex;
+                        gap: 10px;
+                        justify-content: flex-end;
+                    ">
+                        <button id="updateDialogSkip" style="
+                            padding: 10px 20px;
+                            background: transparent;
+                            border: 1px solid #555;
+                            color: #999;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 0.95em;
+                        ">Skip This Version</button>
+                        <button id="updateDialogLater" style="
+                            padding: 10px 20px;
+                            background: #444;
+                            border: none;
+                            color: white;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 0.95em;
+                        ">Remind Me Later</button>
+                        <button id="updateDialogDownload" style="
+                            padding: 10px 20px;
+                            background: #2989d8;
+                            border: none;
+                            color: white;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 0.95em;
+                            font-weight: bold;
+                        ">View Release</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add dialog to page
+        document.body.insertAdjacentHTML('beforeend', dialogHTML);
+
+        // Setup button handlers
+        const dialog = document.getElementById('updateDialog');
+
+        document.getElementById('updateDialogSkip').onclick = function() {
+            dismissVersion(latestVersion);
+            dialog.remove();
+        };
+
+        document.getElementById('updateDialogLater').onclick = function() {
+            dialog.remove();
+        };
+
+        document.getElementById('updateDialogDownload').onclick = function() {
+            window.open(releaseUrl, '_blank');
+            dialog.remove();
+        };
+
+        // Close on background click
+        dialog.onclick = function(e) {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        };
+
+        // Close on Escape key
+        function handleEscape(e) {
+            if (e.key === 'Escape') {
+                dialog.remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        }
+        document.addEventListener('keydown', handleEscape);
     }
 
     /**
-     * Show the update notification banner
+     * Fetch latest release from GitHub - checks every time app opens
      */
-    function showUpdateBanner(latestVersion, releaseUrl, releaseNotes) {
-        const banner = document.getElementById('updateBanner');
-        if (!banner) return;
-
-        const versionSpan = document.getElementById('latestVersionNumber');
-        const notesDiv = document.getElementById('releaseNotes');
-        const downloadLink = document.getElementById('downloadUpdateLink');
-
-        if (versionSpan) {
-            versionSpan.textContent = latestVersion;
-        }
-
-        if (notesDiv && releaseNotes) {
-            // Show first 200 chars of release notes
-            const truncatedNotes = releaseNotes.length > 200
-                ? releaseNotes.substring(0, 200) + '...'
-                : releaseNotes;
-            notesDiv.textContent = truncatedNotes;
-            notesDiv.style.display = 'block';
-        }
-
-        if (downloadLink) {
-            downloadLink.href = releaseUrl;
-        }
-
-        banner.style.display = 'flex';
-
-        // Setup dismiss button
-        const dismissBtn = document.getElementById('dismissUpdateBtn');
-        if (dismissBtn) {
-            dismissBtn.onclick = function() {
-                banner.style.display = 'none';
-                dismissVersion(latestVersion);
-            };
-        }
-    }
-
-    /**
-     * Fetch latest release from GitHub
-     */
-    async function checkForUpdates(force = false) {
-        // Skip check if not enough time has passed (unless forced)
-        if (!force && !shouldCheckForUpdates()) {
-            return null;
-        }
-
+    async function checkForUpdates() {
         try {
             const response = await fetch(GITHUB_API_URL, {
                 headers: {
@@ -140,15 +234,13 @@ const VersionChecker = (function() {
             }
 
             const release = await response.json();
-            updateLastCheckTime();
-
             const latestVersion = release.tag_name.replace(/^v/, '');
 
             // Check if update is available
             if (compareVersions(latestVersion, CURRENT_VERSION) > 0) {
                 // Check if user dismissed this version
                 if (!isVersionDismissed(latestVersion)) {
-                    showUpdateBanner(
+                    showUpdateDialog(
                         latestVersion,
                         release.html_url,
                         release.body
