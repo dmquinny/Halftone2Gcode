@@ -4,7 +4,7 @@
  */
 
 const VersionChecker = (function() {
-    const CURRENT_VERSION = '1.5.3';
+    const CURRENT_VERSION = '1.5.4';
     const GITHUB_REPO = 'dmquinny/Halftone2Gcode';
     const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
     const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -198,8 +198,25 @@ const VersionChecker = (function() {
             dialog.remove();
         });
 
-        downloadBtn.addEventListener('click', function() {
-            window.open(releaseUrl, '_blank');
+        downloadBtn.addEventListener('click', async function() {
+            // Try Tauri shell API first, fall back to window.open
+            try {
+                if (window.__TAURI__) {
+                    // Tauri v2 uses invoke with plugin:shell|open
+                    const { invoke } = window.__TAURI__.core || window.__TAURI__;
+                    if (invoke) {
+                        await invoke('plugin:shell|open', { path: releaseUrl });
+                    } else {
+                        window.open(releaseUrl, '_blank');
+                    }
+                } else {
+                    window.open(releaseUrl, '_blank');
+                }
+            } catch (e) {
+                console.error('Failed to open URL:', e);
+                // Fallback: try window.open anyway
+                window.open(releaseUrl, '_blank');
+            }
             dialog.remove();
         });
 

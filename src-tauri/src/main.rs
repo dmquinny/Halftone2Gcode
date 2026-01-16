@@ -151,6 +151,7 @@ fn open_file_in_editor(file_path: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .manage(GcodeFile {
             file: Mutex::new(None),
             path: Mutex::new(None),
