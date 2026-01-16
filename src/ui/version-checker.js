@@ -183,29 +183,32 @@ const VersionChecker = (function() {
         // Add dialog to page
         document.body.insertAdjacentHTML('beforeend', dialogHTML);
 
-        // Setup button handlers
+        // Setup button handlers using addEventListener (CSP compliant)
         const dialog = document.getElementById('updateDialog');
+        const skipBtn = document.getElementById('updateDialogSkip');
+        const laterBtn = document.getElementById('updateDialogLater');
+        const downloadBtn = document.getElementById('updateDialogDownload');
 
-        document.getElementById('updateDialogSkip').onclick = function() {
+        skipBtn.addEventListener('click', function() {
             dismissVersion(latestVersion);
             dialog.remove();
-        };
+        });
 
-        document.getElementById('updateDialogLater').onclick = function() {
+        laterBtn.addEventListener('click', function() {
             dialog.remove();
-        };
+        });
 
-        document.getElementById('updateDialogDownload').onclick = function() {
+        downloadBtn.addEventListener('click', function() {
             window.open(releaseUrl, '_blank');
             dialog.remove();
-        };
+        });
 
         // Close on background click
-        dialog.onclick = function(e) {
+        dialog.addEventListener('click', function(e) {
             if (e.target === dialog) {
                 dialog.remove();
             }
-        };
+        });
 
         // Close on Escape key
         function handleEscape(e) {
@@ -274,12 +277,24 @@ const VersionChecker = (function() {
         return RELEASES_URL;
     }
 
+    /**
+     * Force show the update dialog for testing
+     */
+    function testDialog() {
+        showUpdateDialog(
+            '99.0.0',
+            RELEASES_URL,
+            '- Test release notes\n- Feature 1\n- Feature 2\n- Bug fix'
+        );
+    }
+
     // Public API
     return {
         checkForUpdates,
         getCurrentVersion,
         getReleasesUrl,
-        compareVersions
+        compareVersions,
+        testDialog
     };
 })();
 
