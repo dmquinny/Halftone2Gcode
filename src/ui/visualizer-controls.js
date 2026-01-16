@@ -325,28 +325,58 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
 // Export for use in other scripts
 window.loadGCodeIntoVisualizer = loadGCodeIntoVisualizer;
 
-// Show/hide pressure legend based on plotter mode
+// Show/hide legends based on mode (pressure for plotter, depth for V-Carve)
 function updatePressureLegendVisibility() {
-    const legend = document.getElementById('vizPressureLegend');
-    if (!legend) return;
+    const pressureLegend = document.getElementById('vizPressureLegend');
+    const depthLegend = document.getElementById('vizDepthLegend');
 
     const plotterModeToggle = document.getElementById('plotterModeToggle');
     const plotterMethod = document.getElementById('plotterLineWidthMethod');
     const isPlotterMode = plotterModeToggle?.checked || false;
     const isPressureMethod = plotterMethod?.value === 'pressure';
 
-    legend.style.display = (isPlotterMode && isPressureMethod && visualizerLoaded) ? 'block' : 'none';
+    // Show pressure legend for plotter mode with pressure method
+    if (pressureLegend) {
+        pressureLegend.style.display = (isPlotterMode && isPressureMethod && visualizerLoaded) ? 'block' : 'none';
+    }
+
+    // Show depth legend for V-Carve mode (non-plotter)
+    if (depthLegend) {
+        depthLegend.style.display = (!isPlotterMode && visualizerLoaded) ? 'block' : 'none';
+
+        // Update max depth display if visualizer is loaded
+        if (!isPlotterMode && visualizerLoaded && window.gcodeVisualizer) {
+            const maxDepth = window.gcodeVisualizer.getDetectedMaxDepth ? window.gcodeVisualizer.getDetectedMaxDepth() : 0;
+            const maxDepthDisplay = document.getElementById('vizMaxDepthDisplay');
+            if (maxDepthDisplay) {
+                maxDepthDisplay.textContent = `(${maxDepth.toFixed(2)}mm)`;
+            }
+        }
+    }
 }
 
-// Wire up pressure legend toggle button
+// Wire up pressure and depth legend toggle buttons
 document.addEventListener('DOMContentLoaded', function() {
-    const toggleBtn = document.getElementById('vizTogglePressureColors');
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', function() {
+    // Pressure toggle for plotter mode
+    const pressureToggleBtn = document.getElementById('vizTogglePressureColors');
+    if (pressureToggleBtn) {
+        pressureToggleBtn.addEventListener('click', function() {
             if (window.gcodeVisualizer && typeof window.gcodeVisualizer.togglePressureColors === 'function') {
                 const enabled = window.gcodeVisualizer.togglePressureColors();
-                toggleBtn.textContent = enabled ? 'Hide Colors' : 'Show Colors';
-                toggleBtn.style.background = enabled ? '#607D8B' : '#455A64';
+                pressureToggleBtn.textContent = enabled ? 'Hide Colors' : 'Show Colors';
+                pressureToggleBtn.style.background = enabled ? '#607D8B' : '#455A64';
+            }
+        });
+    }
+
+    // Depth toggle for V-Carve mode
+    const depthToggleBtn = document.getElementById('vizToggleDepthColors');
+    if (depthToggleBtn) {
+        depthToggleBtn.addEventListener('click', function() {
+            if (window.gcodeVisualizer && typeof window.gcodeVisualizer.toggleDepthColors === 'function') {
+                const enabled = window.gcodeVisualizer.toggleDepthColors();
+                depthToggleBtn.textContent = enabled ? 'Hide Colors' : 'Show Colors';
+                depthToggleBtn.style.background = enabled ? '#607D8B' : '#455A64';
             }
         });
     }

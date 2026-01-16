@@ -34,6 +34,10 @@ class GCodeVisualizer {
         this.plotterPressureMax = -0.5;   // Heavy pressure (more negative Z)
         this.showPressureColors = true;   // Color-code by pressure
 
+        // V-Carve mode settings for depth visualization
+        this.showDepthColors = true;      // Color-code by cutting depth
+        this.maxCuttingDepth = 3.0;       // Max depth for color scale (mm)
+
         this.init();
     }
 
@@ -257,6 +261,89 @@ class GCodeVisualizer {
                 const r = Math.round(0x88 + (0x11 - 0x88) * bandRatio);
                 const g = Math.round(0xdd + (0x44 - 0xdd) * bandRatio);
                 const b = Math.round(0xff + (0xaa - 0xff) * bandRatio);
+                const bandColor = (r << 16) | (g << 8) | b;
+
+                const material = new THREE.LineBasicMaterial({
+                    color: bandColor,
+                    linewidth: 2,
+                    opacity: 1.0,
+                    transparent: false
+                });
+                const lines = new THREE.LineSegments(geometry, material);
+                this.pathGroup.add(lines);
+            }
+        } else if (!this.plotterMode && this.showDepthColors) {
+            // V-Carve mode with depth colors: color-code cutting moves by depth
+            const NUM_DEPTH_BANDS = 10;
+            const rapidVertices = [];
+            const depthBands = new Array(NUM_DEPTH_BANDS).fill(null).map(() => []);
+
+            // Find the actual max depth from the moves for accurate scaling
+            let actualMaxDepth = 0;
+            for (let i = 0; i < this.moves.length; i++) {
+                const move = this.moves[i];
+                if (move.type === 'cutting' && move.to.z < 0) {
+                    actualMaxDepth = Math.max(actualMaxDepth, Math.abs(move.to.z));
+                }
+            }
+            // Use detected max depth or configured max, whichever is larger
+            const depthRange = Math.max(actualMaxDepth, this.maxCuttingDepth);
+            this.detectedMaxDepth = actualMaxDepth; // Store for legend display
+
+            for (let i = 0; i < this.moves.length; i++) {
+                const move = this.moves[i];
+
+                const fromX = move.from.x;
+                const fromY = move.from.z + toolpathOffset;
+                const fromZ = -move.from.y;
+
+                const toX = move.to.x;
+                const toY = move.to.z + toolpathOffset;
+                const toZ = -move.to.y;
+
+                if (move.type === 'rapid') {
+                    rapidVertices.push(fromX, fromY, fromZ);
+                    rapidVertices.push(toX, toY, toZ);
+                } else {
+                    // Determine depth band based on destination Z (negative = deeper)
+                    const depth = Math.abs(Math.min(0, move.to.z)); // Convert to positive depth
+                    let bandIndex = 0;
+                    if (depthRange > 0) {
+                        const normalizedDepth = depth / depthRange;
+                        bandIndex = Math.floor(Math.max(0, Math.min(0.999, normalizedDepth)) * NUM_DEPTH_BANDS);
+                    }
+                    depthBands[bandIndex].push(fromX, fromY, fromZ, toX, toY, toZ);
+                }
+            }
+
+            // Create rapid moves (cyan)
+            if (rapidVertices.length > 0) {
+                const rapidGeometry = new THREE.BufferGeometry();
+                rapidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(rapidVertices, 3));
+                const rapidMaterial = new THREE.LineBasicMaterial({
+                    color: 0x00ffff,
+                    linewidth: 2,
+                    opacity: 0.6,
+                    transparent: true
+                });
+                const rapidLines = new THREE.LineSegments(rapidGeometry, rapidMaterial);
+                this.pathGroup.add(rapidLines);
+            }
+
+            // Create cutting moves for each depth band with gradient colors
+            // Shallow = light green/yellow, Deep = dark red/brown
+            for (let band = 0; band < NUM_DEPTH_BANDS; band++) {
+                if (depthBands[band].length === 0) continue;
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(depthBands[band], 3));
+
+                // Calculate color for this band (light green to deep red gradient)
+                const bandRatio = band / (NUM_DEPTH_BANDS - 1);
+                // Shallow: 0x88ff88 (light green) -> Deep: 0xcc2222 (dark red)
+                const r = Math.round(0x88 + (0xcc - 0x88) * bandRatio);
+                const g = Math.round(0xff + (0x22 - 0xff) * bandRatio);
+                const b = Math.round(0x88 + (0x22 - 0x88) * bandRatio);
                 const bandColor = (r << 16) | (g << 8) | b;
 
                 const material = new THREE.LineBasicMaterial({
@@ -863,6 +950,36 @@ class GCodeVisualizer {
             this.drawToolpath();
         }
         return this.showPressureColors;
+    }
+
+    /**
+     * Toggle depth color visualization on/off (for V-Carve mode)
+     */
+    toggleDepthColors() {
+        this.showDepthColors = !this.showDepthColors;
+        if (this.moves.length > 0) {
+            this.drawToolpath();
+        }
+        return this.showDepthColors;
+    }
+
+    /**
+     * Set max cutting depth for color scale
+     * @param {number} maxDepth - Maximum depth in mm
+     */
+    setMaxCuttingDepth(maxDepth) {
+        this.maxCuttingDepth = maxDepth;
+        if (this.moves.length > 0 && !this.plotterMode && this.showDepthColors) {
+            this.drawToolpath();
+        }
+    }
+
+    /**
+     * Get the detected max depth from the loaded G-code
+     * @returns {number} - Max depth in mm
+     */
+    getDetectedMaxDepth() {
+        return this.detectedMaxDepth || 0;
     }
 
     /**
