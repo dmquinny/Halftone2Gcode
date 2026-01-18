@@ -300,29 +300,47 @@ const generateLineWorkerCode = function generateLine(grayscale, width, height, s
     const points = [];
     const diagonal = Math.sqrt(width * width + height * height);
     // Use finer step for wave patterns to capture wave shape properly
-    // For waves, need at least 20 points per wavelength for smooth curves
+    // For waves, need at least 30 points per wavelength for smooth curves
+    const wavelengthPx = wavelength > 0 ? wavelength * resolution : 0;
+    const amplitudePx = amplitude > 0 ? amplitude * resolution : 0;
+    const hasWave = wavelengthPx > 0 && amplitudePx > 0;
     let step;
-    if (wavelength > 0 && amplitude > 0) {
-        const wavelengthPx = wavelength * resolution;
-        step = Math.min(wavelengthPx / 20, Math.max(0.1 * resolution, 0.1));
+    if (hasWave) {
+        // Step must be small enough for smooth waves: wavelength/30 points
+        // But not too small to avoid performance issues (min 0.5px)
+        step = Math.max(0.5, wavelengthPx / 30);
     } else {
         step = Math.max(0.2 * resolution, 0.2);
     }
     const perpDirX = -dirY;
     const perpDirY = dirX;
+    // First pass: find where the line enters the visible area
+    // This ensures wave phase starts fresh at the visible portion
+    let firstVisibleT = null;
     for (let t = -diagonal; t < diagonal; t += step) {
+        const x = startX + dirX * t;
+        const y = startY + dirY * t;
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            firstVisibleT = t;
+            break;
+        }
+    }
+    if (firstVisibleT === null) return points; // No visible portion
+    // Second pass: generate points with wave phase starting at visible portion
+    for (let t = firstVisibleT; t < diagonal; t += step) {
         let x = startX + dirX * t;
         let y = startY + dirY * t;
-        if (wavelength > 0 && amplitude > 0) {
-            const wavelengthPx = wavelength * resolution;
-            const amplitudePx = amplitude * resolution;
-            const waveOffset = Math.sin((t / wavelengthPx) * 2 * Math.PI) * amplitudePx;
+        if (x < 0 || x >= width || y < 0 || y >= height) break; // Exit when leaving visible area
+        if (hasWave) {
+            // Wave phase starts at 0 when line enters visible area
+            const localT = t - firstVisibleT;
+            const waveOffset = Math.sin((localT / wavelengthPx) * 2 * Math.PI) * amplitudePx;
             x += perpDirX * waveOffset;
             y += perpDirY * waveOffset;
         }
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            const px = Math.floor(x);
-            const py = Math.floor(y);
+        const px = Math.floor(x);
+        const py = Math.floor(y);
+        if (px >= 0 && px < width && py >= 0 && py < height) {
             const index = py * width + px;
             const brightness = grayscale[index];
             const depth = 1 - (brightness / 255);
@@ -464,7 +482,16 @@ const generateHalftoneWithProgressWorkerCode = function generateHalftoneWithProg
     // Use dynamic resolution like halftoner app: 2.5 samples per spacing unit
     // This ensures smooth gradients regardless of spacing value
     const samplesPerSpacing = 2.5;
-    const resolution = Math.ceil(samplesPerSpacing / spacing);
+    let resolution = Math.ceil(samplesPerSpacing / spacing);
+
+    // When waves are enabled, ensure minimum resolution to capture wave amplitude
+    // Need at least 4-5 pixels per amplitude to see the wave clearly
+    const wavelength = options.wavelength || 0;
+    const amplitude = options.amplitude || 0;
+    if (wavelength > 0 && amplitude > 0) {
+        const minResolutionForWaves = Math.ceil(5 / amplitude);
+        resolution = Math.max(resolution, minResolutionForWaves, 5);
+    }
 
     const aspectRatio = height / width;
     const outputHeightMM = options.lockAspect !== false ? (outputWidthMM * aspectRatio) : (options.outputHeight || outputWidthMM * aspectRatio);
@@ -3515,7 +3542,16 @@ function generateLinePattern(img, lineSpacing, angle, outputWidthMM, brightness 
 
     // Use dynamic resolution like halftoner app: 2.5 samples per spacing unit
     const samplesPerSpacing = 2.5;
-    const resolution = Math.ceil(samplesPerSpacing / lineSpacing);
+    let resolution = Math.ceil(samplesPerSpacing / lineSpacing);
+
+    // When waves are enabled, ensure minimum resolution to capture wave amplitude
+    // Need at least 4-5 pixels per amplitude to see the wave clearly
+    const wavelength = options.wavelength || 0;
+    const amplitude = options.amplitude || 0;
+    if (wavelength > 0 && amplitude > 0) {
+        const minResolutionForWaves = Math.ceil(5 / amplitude);
+        resolution = Math.max(resolution, minResolutionForWaves, 5);
+    }
 
     const pixelWidth = Math.floor(outputWidthMM * resolution);
     const pixelHeight = Math.floor(outputHeightMM * resolution);
@@ -4262,36 +4298,56 @@ function generateLine(grayscale, width, height, startX, startY, dirX, dirY, reso
     const points = [];
     const diagonal = Math.sqrt(width * width + height * height);
 
-    // Use much finer sampling (0.05mm) for crisp waves - matches Halftoner app approach
-    // Halftoner uses pointSpacing = lineSpacing * 0.25 for better wave definition
-    const step = 0.05;
+    // Convert wavelength and amplitude from mm to pixels
+    const wavelengthPx = wavelength > 0 ? wavelength * resolution : 0;
+    const amplitudePx = amplitude > 0 ? amplitude * resolution : 0;
+    const hasWave = wavelengthPx > 0 && amplitudePx > 0;
+
+    // Calculate step size: for waves, use at least 30 points per wavelength
+    // For non-wave lines, use coarser step
+    let step;
+    if (hasWave) {
+        step = Math.max(0.5, wavelengthPx / 30);
+    } else {
+        step = Math.max(0.2 * resolution, 0.2);
+    }
 
     // Calculate perpendicular direction for wave offset
     const perpDirX = -dirY;
     const perpDirY = dirX;
 
-    // Pre-calculate wave step for efficiency
-    let waveAngle = 0;
-    const waveStep = wavelength > 0 ? (Math.PI * 2) / (wavelength / step) : 0;
-
-    // Scan along the line in both directions
+    // First pass: find where the line enters the visible area
+    // This ensures wave phase starts fresh at the visible portion
+    let firstVisibleT = null;
     for (let t = -diagonal; t < diagonal; t += step) {
+        const x = startX + dirX * t;
+        const y = startY + dirY * t;
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            firstVisibleT = t;
+            break;
+        }
+    }
+    if (firstVisibleT === null) return optimizeLinePoints(points); // No visible portion
+
+    // Second pass: generate points with wave phase starting at visible portion
+    for (let t = firstVisibleT; t < diagonal; t += step) {
         let x = startX + dirX * t;
         let y = startY + dirY * t;
 
+        if (x < 0 || x >= width || y < 0 || y >= height) break; // Exit when leaving visible area
+
         // Apply wave pattern if wavelength and amplitude are set
-        if (wavelength > 0 && amplitude > 0) {
-            const amplitudePx = amplitude * resolution;
-            // Use sine of wave angle for smooth oscillation
-            const waveOffset = Math.sin(waveAngle) * amplitudePx;
+        if (hasWave) {
+            // Wave phase starts at 0 when line enters visible area
+            const localT = t - firstVisibleT;
+            const waveOffset = Math.sin((localT / wavelengthPx) * 2 * Math.PI) * amplitudePx;
             x += perpDirX * waveOffset;
             y += perpDirY * waveOffset;
         }
 
-        // Check if point is within image bounds
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            const px = Math.floor(x);
-            const py = Math.floor(y);
+        const px = Math.floor(x);
+        const py = Math.floor(y);
+        if (px >= 0 && px < width && py >= 0 && py < height) {
             const index = py * width + px;
             const brightness = grayscale[index];
 
@@ -4303,11 +4359,6 @@ function generateLine(grayscale, width, height, startX, startY, dirX, dirY, reso
                 y: y,
                 depth: depth
             });
-        }
-
-        // Increment wave angle for next iteration
-        if (wavelength > 0) {
-            waveAngle += waveStep;
         }
     }
 
