@@ -96,7 +96,7 @@ function generateGcodeFooter(safeHeight, plotterMode, outputUnits = 'mm') {
     return footerLines;
 }
 
-async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, depthPerPass = 0.1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, plotterPenLift = 2, plotterCalibration = null, outputUnits = 'mm', streamer) {
+async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plungeFeedRate, vbitAngle, workZero = 'bottom-left', spindleSpeed = 12000, toolChange = false, vbitToolNumber = 1, boundaryToolNumber = 2, boundaryToolSize = 3.175, boundaryDepth = 1, boundaryPassDepth = 0.5, multiPassCount = 1, depthPerPass = 0.1, ramping = false, rampDistance = 2, boundary = false, includeBoundaryInGcode = true, includeLineNumbers = false, optimizeToolpathEnabled = true, bidirectional = true, borderCuttingFeedRate = null, plotterMode = false, plotterLineWidthMethod = 'pressure', plotterPressureMin = 0, plotterPressureMax = -0.5, plotterPenWidth = 0.5, plotterPenSize = 0.5, plotterLineWidthLight = 0.3, plotterLineWidthHeavy = 1.0, plotterPenLift = 2, plotterCalibration = null, outputUnits = 'mm', acceleration = 500, streamer) {
 
     // Extract advanced calibration settings
     const useMidpointCalibration = plotterCalibration?.useMidpoint || false;
@@ -148,6 +148,57 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     const pixelsToMM = halftoneData.width / halftoneData.pixelWidth;
     const minDepth = 0.05;
     const rapidRate = 5000;
+
+    // Acceleration-aware time calculation
+    // acceleration is in mm/s², feedRate is in mm/min
+    // Returns time in seconds
+    //
+    // CNC machines can't instantly change direction - they must slow down at corners.
+    // For small segments (wave patterns), the machine often can't reach full speed
+    // before needing to slow for the next direction change.
+
+    const calculateMoveTime = (distance, feedRate, isDirectionChange = false) => {
+        if (distance <= 0) return 0;
+
+        // Convert feed rate from mm/min to mm/s
+        const maxVelocity = feedRate / 60;
+
+        // If acceleration is 0 or disabled, use simple calculation
+        if (!acceleration || acceleration <= 0) {
+            return distance / maxVelocity;
+        }
+
+        // Calculate the distance needed to accelerate to full speed
+        // d = v² / (2a)
+        const accelDistance = (maxVelocity * maxVelocity) / (2 * acceleration);
+
+        // For major direction changes (rapids, plunges, retracts), use full trapezoidal profile
+        if (isDirectionChange) {
+            if (distance < 2 * accelDistance) {
+                // Triangular profile - never reaches full speed
+                // t = 2 * sqrt(d / a)
+                return 2 * Math.sqrt(distance / acceleration);
+            } else {
+                // Trapezoidal profile
+                const accelTime = maxVelocity / acceleration;
+                const cruiseDistance = distance - 2 * accelDistance;
+                const cruiseTime = cruiseDistance / maxVelocity;
+                return 2 * accelTime + cruiseTime;
+            }
+        }
+
+        // For continuous cutting moves (G1 segments), the machine uses look-ahead
+        // but still must slow for corners. Use a junction speed model:
+        // - Very short segments (<1mm) can't reach full speed
+        // - Longer segments approach full speed
+
+        // Effective speed reduction factor based on segment length
+        // Short segments = lower effective speed due to corner slowdowns
+        const effectiveSpeedRatio = Math.min(1, Math.sqrt(distance / (2 * accelDistance)));
+        const effectiveVelocity = maxVelocity * Math.max(0.3, effectiveSpeedRatio);  // Min 30% speed
+
+        return distance / effectiveVelocity;
+    };
 
     // Determine pattern type
     const patternType = halftoneData.patternType || 'lines';
@@ -286,7 +337,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
         totalTime += 2; // Spindle startup wait time
     }
     // Add time for initial positioning (assume machine starts at 0,0,0)
-    totalTime += (safeHeight / rapidRate) * 60; // Convert mm/min to seconds
+    totalTime += calculateMoveTime(safeHeight, rapidRate, true);
 
     // === MAIN PATTERN GENERATION ===
     await writeLine('(Begin halftone pattern)');
@@ -335,7 +386,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 if (cmd) await writeLine(cmd);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                                totalTime += (rapidDist / rapidRate) * 60;
+                                totalTime += calculateMoveTime(rapidDist, rapidRate, true);
 
                                 // Apply pressure ramping at line start if enabled
                                 if (usePressureRamping && processedLine.length > 1) {
@@ -393,7 +444,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 if (cmd1) await writeLine(cmd1);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                                totalTime += (rapidDist / rapidRate) * 60;
+                                totalTime += calculateMoveTime(rapidDist, rapidRate, true);
 
                                 if (ramping && i + 1 < line.length) {
                                     const nextPoint = line[i + 1];
@@ -412,7 +463,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                         i++;
                                         const dist = Math.sqrt((nextX - x) ** 2 + (nextY - y) ** 2);
                                         totalCuttingDistance += dist;
-                                        totalTime += ((rampDistance / plungeFeedRate) + ((dist - rampDistance) / cuttingFeedRate)) * 60;
+                                        totalTime += calculateMoveTime(rampDistance, plungeFeedRate, true) + calculateMoveTime(dist - rampDistance, cuttingFeedRate);
                                         lastX = nextX;
                                         lastY = nextY;
                                         continue;
@@ -422,14 +473,14 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 const cmd2 = buildMove('G1', null, null, -depth, plungeFeedRate);
                                 if (cmd2) await writeLine(cmd2);
                                 lastZ = -depth;
-                                totalTime += (depth / plungeFeedRate) * 60;
+                                totalTime += calculateMoveTime(depth, plungeFeedRate, true);
                             } else {
                                 // Include Z for variable depth engraving along the line
                                 const cmd = buildMove('G1', x, y, -depth, cuttingFeedRate);
                                 if (cmd) await writeLine(cmd);
                                 const dist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2 + ((-depth) - lastZ) ** 2);
                                 totalCuttingDistance += dist;
-                                totalTime += (dist / cuttingFeedRate) * 60;
+                                totalTime += calculateMoveTime(dist, cuttingFeedRate);
                                 lastZ = -depth;
                             }
 
@@ -513,7 +564,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 if (cmd2) await writeLine(cmd2);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
-                                totalTime += (rapidDist / rapidRate) * 60;
+                                totalTime += calculateMoveTime(rapidDist, rapidRate, true);
                                 passStarted = true;
                             } else {
                                 // Continue drawing
@@ -521,7 +572,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 if (cmd) await writeLine(cmd);
                                 const drawDist = Math.sqrt((offsetX - lastX) ** 2 + (offsetY - lastY) ** 2);
                                 totalCuttingDistance += drawDist;
-                                totalTime += (drawDist / cuttingFeedRate) * 60;
+                                totalTime += calculateMoveTime(drawDist, cuttingFeedRate);
                             }
 
                             lastX = offsetX;
@@ -533,7 +584,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             const cmd = buildMove('G0', null, null, plotterPenLift, null);
                             if (cmd) await writeLine(cmd);
                             lastZ = plotterPenLift;
-                            totalTime += (plotterPenLift / rapidRate) * 60;
+                            totalTime += calculateMoveTime(plotterPenLift, rapidRate, true);
                         }
                     }
                 }
@@ -543,13 +594,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                     const cmd = buildMove('G0', null, null, safeHeight, null);
                     if (cmd) await writeLine(cmd);
                     lastZ = safeHeight;
-                    totalTime += ((safeHeight + Math.abs(lastZ)) / rapidRate) * 60;
+                    totalTime += calculateMoveTime(safeHeight + Math.abs(lastZ), rapidRate, true);
                 } else if (plotterMode && plotterLineWidthMethod === 'pressure') {
                     // Lift pen to avoid dragging between lines (only for pressure method)
                     const cmd = buildMove('G0', null, null, plotterPenLift, null);
                     if (cmd) await writeLine(cmd);
                     lastZ = plotterPenLift;
-                    totalTime += (plotterPenLift / rapidRate) * 60;
+                    totalTime += calculateMoveTime(plotterPenLift, rapidRate, true);
                 }
                 // Note: Set Pen Size method already lifts pen after each pass above
             }
@@ -581,7 +632,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         if (cmd1) await writeLine(cmd1);
                         rapidMoveCount++;
                         const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                        totalTime += (rapidDist / rapidRate) * 60;
+                        totalTime += calculateMoveTime(rapidDist, rapidRate, true);
                         const cmd2 = buildMove('G1', null, null, depth, plungeFeedRate);
                         if (cmd2) await writeLine(cmd2);
                         lastX = x;
@@ -617,7 +668,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 if (cmd2) await writeLine(cmd2);
                                 rapidMoveCount++;
                                 const rapidDist = Math.sqrt((startX - lastX) ** 2 + (startY - lastY) ** 2);
-                                totalTime += (rapidDist / rapidRate) * 60;
+                                totalTime += calculateMoveTime(rapidDist, rapidRate, true);
 
                                 // Lower pen
                                 const cmd3 = buildMove('G1', null, null, 0, plungeFeedRate);
@@ -632,7 +683,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                 // Calculate circle circumference for time estimation
                                 const circumference = 2 * Math.PI * radius;
                                 totalCuttingDistance += circumference;
-                                totalTime += (circumference / cuttingFeedRate) * 60;
+                                totalTime += calculateMoveTime(circumference, cuttingFeedRate);
 
                                 lastX = startX;
                                 lastY = startY;
@@ -661,13 +712,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                                         if (cmd3) await writeLine(cmd3);
                                         rapidMoveCount++;
                                         const rapidDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
-                                        totalTime += (rapidDist / rapidRate) * 60;
+                                        totalTime += calculateMoveTime(rapidDist, rapidRate, true);
                                     } else {
                                         const cmd = buildMove('G1', corner.x, corner.y, 0, cuttingFeedRate);
                                         if (cmd) await writeLine(cmd);
                                         const drawDist = Math.sqrt((corner.x - lastX) ** 2 + (corner.y - lastY) ** 2);
                                         totalCuttingDistance += drawDist;
-                                        totalTime += (drawDist / cuttingFeedRate) * 60;
+                                        totalTime += calculateMoveTime(drawDist, cuttingFeedRate);
                                     }
 
                                     lastX = corner.x;
@@ -691,7 +742,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                         if (cmd1) await writeLine(cmd1);
                         rapidMoveCount++;
                         const rapidDist = Math.sqrt((x - lastX) ** 2 + (y - lastY) ** 2);
-                        totalTime += (rapidDist / rapidRate) * 60;
+                        totalTime += calculateMoveTime(rapidDist, rapidRate, true);
 
                         // Do all passes at this location before moving to next element
                         // Each pass goes progressively deeper: pass 1 is shallowest, last pass is full depth
@@ -706,13 +757,13 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
                             // Plunge to current depth
                             const cmd2 = buildMove('G1', null, null, -currentDepth, plungeFeedRate);
                             if (cmd2) await writeLine(cmd2);
-                            totalTime += (currentDepth / plungeFeedRate) * 60;
+                            totalTime += calculateMoveTime(currentDepth, plungeFeedRate, true);
 
                             // Retract to safe height (or just above surface for intermediate passes)
                             const retractHeight = (pass < multiPassCount - 1) ? 1 : safeHeight;
                             const cmd3 = buildMove('G0', null, null, retractHeight, null);
                             if (cmd3) await writeLine(cmd3);
-                            totalTime += ((retractHeight + currentDepth) / rapidRate) * 60;
+                            totalTime += calculateMoveTime(retractHeight + currentDepth, rapidRate, true);
                             lastZ = retractHeight;
                         }
 
@@ -731,9 +782,9 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     // This ensures each file part gets a proper footer
 
     // Account for footer time in estimation
-    totalTime += (Math.abs(safeHeight - lastZ) / rapidRate) * 60;
+    totalTime += calculateMoveTime(Math.abs(safeHeight - lastZ), rapidRate, true);
     const finalDist = Math.sqrt(lastX ** 2 + lastY ** 2);
-    totalTime += (finalDist / rapidRate) * 60;
+    totalTime += calculateMoveTime(finalDist, rapidRate, true);
 
     // Return stats
     return {

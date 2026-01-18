@@ -124,6 +124,10 @@ async function generateGcodeWithStreaming() {
         // Get output units
         const outputUnits = outputUnitsSelect?.value || 'mm';
 
+        // Get acceleration for time estimation (mm/s²)
+        const accelerationInput = document.getElementById('acceleration');
+        const acceleration = parseFloat(accelerationInput?.value || 500);
+
         // Generate header and footer arrays for file splitting
         const headerLines = generateGcodeHeader(
             currentHalftoneData,
@@ -190,6 +194,7 @@ async function generateGcodeWithStreaming() {
             plotterPenLift,
             plotterCalibration,
             outputUnits,
+            acceleration,
             streamer  // Pass streamer as last parameter
         );
 
@@ -291,6 +296,11 @@ async function generateGcodeWithStreaming() {
         if (clearBtn) clearBtn.disabled = false;
 
         if (generateGcodeButton) generateGcodeButton.disabled = false;
+
+        // Check for depth warning
+        if (typeof checkDepthWarning === 'function') {
+            checkDepthWarning();
+        }
 
         // Create success message with file information
         let successMessage = '✅ Success!\n\n';

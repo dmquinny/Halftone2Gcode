@@ -466,6 +466,17 @@
                             </label>
                         </div>
 
+                        <div class="control-group compact full-width" id="ignoreTransparent-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="ignoreTransparentToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Ignore Transparent Background</span>
+                                <span class="help-icon" data-tooltip="Treat transparent pixels as white (no carving)">?</span>
+                            </label>
+                        </div>
+
                         <div class="control-group compact full-width" id="outputUnits-group">
                             <label for="outputUnits">
                                 G-Code Output Units <span class="help-icon" data-tooltip="Units for generated G-code (G21 for mm, G20 for inches)">?</span>
@@ -524,6 +535,7 @@
                                 V-bit Angle <span class="help-icon" data-tooltip="Must match your actual V-bit tool">?</span>
                             </label>
                             <select id="vbitAngle">
+                                <option value="15">15°</option>
                                 <option value="30">30°</option>
                                 <option value="60">60°</option>
                                 <option value="90" selected>90°</option>
@@ -572,6 +584,17 @@
                                 <button class="decrement-btn" data-target="plungeFeedRate">-</button>
                                 <input type="number" id="plungeFeedRate" min="50" max="1000" step="50" value="300">
                                 <button class="increment-btn" data-target="plungeFeedRate">+</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group compact" id="acceleration-group">
+                            <label for="acceleration">
+                                Acceleration (mm/s²) <span class="help-icon" data-tooltip="Machine acceleration for more accurate time estimates. Set to 0 to disable. Common values: 500-3000 for hobby machines, 100-500 for larger machines.">?</span>
+                            </label>
+                            <div class="input-with-buttons">
+                                <button class="decrement-btn" data-target="acceleration">-</button>
+                                <input type="number" id="acceleration" min="0" max="10000" step="100" value="500">
+                                <button class="increment-btn" data-target="acceleration">+</button>
                             </div>
                         </div>
                     </div>
@@ -1073,6 +1096,7 @@
                         </div>
                         <div class="gcode-info" id="gcodeInfo"></div>
                         <div class="time-estimate" id="timeEstimate"></div>
+                        <div id="depthWarning" style="display: none; background: #fff3cd; color: #856404; padding: 8px 12px; border-radius: 4px; margin-top: 8px; font-size: 0.9em; border-left: 3px solid #ffc107;"></div>
 
                         <!-- Tabs for G-code and Visualizer -->
                         <div style="margin-top: 15px;">

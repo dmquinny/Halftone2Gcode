@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Function to load G-code into visualizer
-function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
+async function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
     // Get image dimensions and material thickness from the UI
     const widthInput = document.getElementById('imageWidth');
     const heightInput = document.getElementById('imageHeight');
@@ -284,13 +284,14 @@ function loadGCodeIntoVisualizer(gcodeText = null, filePath = null) {
         }
 
         // Use file path if provided (streaming mode), otherwise use text content
+        // IMPORTANT: Must await async loading before updating legend with depth values
         if (filePath) {
-            window.gcodeVisualizer.loadGCodeFromFile(filePath, imageWidth, imageHeight, materialThickness);
+            await window.gcodeVisualizer.loadGCodeFromFile(filePath, imageWidth, imageHeight, materialThickness);
         } else if (gcodeText) {
             window.gcodeVisualizer.loadGCode(gcodeText, imageWidth, imageHeight, materialThickness);
         }
 
-        // Update pressure legend visibility
+        // Update pressure legend visibility AFTER G-code is fully loaded and parsed
         if (typeof updatePressureLegendVisibility === 'function') {
             updatePressureLegendVisibility();
         }

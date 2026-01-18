@@ -59,6 +59,7 @@ const centerOffsetYInput = document.getElementById('centerOffsetY');
 const offsetOddLinesToggle = document.getElementById('offsetOddLinesToggle');
 const darkBoostToggle = document.getElementById('darkBoostToggle');
 const fixedSizesToggle = document.getElementById('fixedSizesToggle');
+const ignoreTransparentToggle = document.getElementById('ignoreTransparentToggle');
 const outputUnitsSelect = document.getElementById('outputUnits');
 const vbitAngleSelect = document.getElementById('vbitAngle');
 const livePreviewToggle = document.getElementById('livePreviewToggle');
@@ -211,6 +212,44 @@ let progressiveLines = [];
 let progressiveElements = [];
 let startTime = 0;
 
+// Check if depth settings will cause line width capping and show warning
+function checkDepthWarning() {
+    const depthWarning = document.getElementById('depthWarning');
+    if (!depthWarning) return;
+
+    // Only check in V-carve mode (not plotter mode)
+    const plotterMode = plotterModeToggle?.checked || false;
+    if (plotterMode) {
+        depthWarning.style.display = 'none';
+        return;
+    }
+
+    // Get current settings
+    const vbitAngle = parseFloat(vbitAngleSelect?.value || 90);
+    const maxDepth = parseFloat(maxDepthInput?.value || 2);
+    const maxLineWidth = currentHalftoneData?.maxSize || 0;
+
+    if (maxLineWidth <= 0) {
+        depthWarning.style.display = 'none';
+        return;
+    }
+
+    // Calculate required depth for max line width
+    // Formula: depth = width / (2 * tan(halfAngle))
+    const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
+    const tanValue = Math.tan(vbitHalfAngle);
+    const requiredDepth = tanValue > 0.001 ? maxLineWidth / (2 * tanValue) : maxDepth;
+
+    // Show warning if required depth exceeds max depth
+    if (requiredDepth > maxDepth * 1.05) { // 5% tolerance
+        const cappedWidth = 2 * maxDepth * tanValue;
+        depthWarning.innerHTML = `<strong>Depth Limit Warning:</strong> With a ${vbitAngle}° V-bit and ${maxLineWidth.toFixed(2)}mm max line width, the required depth is ${requiredDepth.toFixed(2)}mm, but max depth is set to ${maxDepth.toFixed(2)}mm. Lines will be capped at ~${cappedWidth.toFixed(2)}mm width.`;
+        depthWarning.style.display = 'block';
+    } else {
+        depthWarning.style.display = 'none';
+    }
+}
+
 // Worker function definitions (will be stringified and injected into Blob worker)
 const resampleImageWorkerCode = function resampleImage(imageData, srcWidth, srcHeight, destWidth, destHeight) {
     const result = new Uint8ClampedArray(destWidth * destHeight * 4);
@@ -260,7 +299,15 @@ const adjustBrightnessContrastWorkerCode = function adjustBrightnessContrast(gra
 const generateLineWorkerCode = function generateLine(grayscale, width, height, startX, startY, dirX, dirY, resolution, wavelength, amplitude) {
     const points = [];
     const diagonal = Math.sqrt(width * width + height * height);
-    const step = Math.max(0.2 * resolution, 0.2);
+    // Use finer step for wave patterns to capture wave shape properly
+    // For waves, need at least 20 points per wavelength for smooth curves
+    let step;
+    if (wavelength > 0 && amplitude > 0) {
+        const wavelengthPx = wavelength * resolution;
+        step = Math.min(wavelengthPx / 20, Math.max(0.1 * resolution, 0.1));
+    } else {
+        step = Math.max(0.2 * resolution, 0.2);
+    }
     const perpDirX = -dirY;
     const perpDirY = dirX;
     for (let t = -diagonal; t < diagonal; t += step) {
@@ -299,10 +346,15 @@ const generateLinesProgressiveWorkerCode = function generateLinesProgressive(gra
     const lines = [];
     const batchSize = 5;
     let processedCount = 0;
+    const fixedSizes = options.fixedSizes || false;
     for (let i = -numLines / 2; i < numLines / 2; i++) {
         const line = generateLine(grayscale, pixelWidth, pixelHeight, centerX + perpX * i * spacingPx, centerY + perpY * i * spacingPx, paraX, paraY, resolution, options.wavelength || 0, options.amplitude || 0);
         if (line.length > 1) {
-            const offsetLine = line.map(point => ({ x: point.x + borderPx, y: point.y + borderPx, depth: point.depth }));
+            const offsetLine = line.map(point => ({
+                x: point.x + borderPx,
+                y: point.y + borderPx,
+                depth: fixedSizes ? (point.depth > 0.01 ? 1.0 : 0) : point.depth
+            }));
             lines.push(offsetLine);
         }
         processedCount++;
@@ -324,10 +376,15 @@ const generateLinesForCrosshatchWorkerCode = function generateLinesForCrosshatch
     const numLines = Math.ceil(diagonal / spacingPx) + 2;
     const centerX = pixelWidth / 2;
     const centerY = pixelHeight / 2;
+    const fixedSizes = options.fixedSizes || false;
     for (let i = -numLines / 2; i < numLines / 2; i++) {
         const line = generateLine(grayscale, pixelWidth, pixelHeight, centerX + perpX * i * spacingPx, centerY + perpY * i * spacingPx, paraX, paraY, resolution, options.wavelength || 0, options.amplitude || 0);
         if (line.length > 1) {
-            const offsetLine = line.map(point => ({ x: point.x + borderPx, y: point.y + borderPx, depth: point.depth }));
+            const offsetLine = line.map(point => ({
+                x: point.x + borderPx,
+                y: point.y + borderPx,
+                depth: fixedSizes ? (point.depth > 0.01 ? 1.0 : 0) : point.depth
+            }));
             outputLines.push(offsetLine);
         }
     }
@@ -354,6 +411,7 @@ const generateElementsProgressiveWorkerCode = function generateElementsProgressi
 
     const minSize = options.minSize || 0;
     const maxSize = options.maxSize || spacing;
+    const fixedSizes = options.fixedSizes || false;
     const PI = Math.PI;
 
     for (let y = spacingPx / 2; y < pixelHeight; y += spacingPx) {
@@ -369,7 +427,10 @@ const generateElementsProgressiveWorkerCode = function generateElementsProgressi
             const bright = brightness / 255;
 
             let elementWidth;
-            if (patternType === 'dots') {
+            if (fixedSizes) {
+                // Fixed sizes mode: use max size for all non-white elements
+                elementWidth = bright < 0.99 ? maxSize : 0;
+            } else if (patternType === 'dots') {
                 // Area-based calculation like halftoner app
                 // NOTE: halftoner uses bright (not 1-bright), so bright pixels = large dots
                 const maxArea = PI * (maxSize * 0.5) * (maxSize * 0.5);
@@ -417,15 +478,34 @@ const generateHalftoneWithProgressWorkerCode = function generateHalftoneWithProg
     const borderPx = borderMM * resolution;
     const resampledData = resampleImage(imageData, width, height, pixelWidth, pixelHeight);
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
+    const ignoreTransparent = options.ignoreTransparent !== false; // Default to true
+    // Create transparency mask to preserve transparent pixels after adjustments (including invert)
+    let transparentMask = ignoreTransparent ? new Uint8Array(pixelWidth * pixelHeight) : null;
     for (let i = 0; i < resampledData.length; i += 4) {
-        const gray = 0.299 * resampledData[i] + 0.587 * resampledData[i + 1] + 0.114 * resampledData[i + 2];
-        grayscale[i / 4] = gray;
+        const alpha = resampledData[i + 3];
+        const pixelIndex = i / 4;
+        // Track transparent pixels so we can restore them after adjustments
+        if (ignoreTransparent && alpha < 128) {
+            transparentMask[pixelIndex] = 1;
+            grayscale[pixelIndex] = 255;
+        } else {
+            const gray = 0.299 * resampledData[i] + 0.587 * resampledData[i + 1] + 0.114 * resampledData[i + 2];
+            grayscale[pixelIndex] = gray;
+        }
     }
     const shadowsLevel = shadows !== undefined ? shadows : 0;
     const midtonesLevel = midtones !== undefined ? midtones : 1.0;
     const highlightsLevel = highlights !== undefined ? highlights : 255;
     if (brightness !== 0 || contrast !== 0 || invert || gamma !== 1.0 || options.darkBoost || shadowsLevel !== 0 || midtonesLevel !== 1.0 || highlightsLevel !== 255) {
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, options.darkBoost || false, shadowsLevel, midtonesLevel, highlightsLevel);
+    }
+    // Restore transparent pixels to white after all adjustments (including invert)
+    if (transparentMask) {
+        for (let i = 0; i < grayscale.length; i++) {
+            if (transparentMask[i]) {
+                grayscale[i] = 255;
+            }
+        }
     }
     if (patternType === 'lines') {
         generateLinesProgressive(grayscale, pixelWidth, pixelHeight, spacing, angle, resolution, totalWidthMM, totalHeightMM, totalPixelWidth, totalPixelHeight, borderPx, options);
@@ -517,7 +597,8 @@ function initWorker() {
                             shouldProcess = point.depth > 0.001; // Almost everything except pure white
                         } else {
                             // Cutting mode: calculate depth from V-bit angle
-                            const targetWidth = point.depth * maxDepth * 2;
+                            // Use point.width if available, otherwise calculate from halftone maxSize
+                            const targetWidth = point.width !== undefined ? point.width : (point.depth * (halftoneData.maxSize || 2));
                             const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                             const tanValue = Math.tan(vbitHalfAngle);
                             // Prevent division by zero - if tan is 0 or very small, use maxDepth
@@ -640,7 +721,8 @@ function initWorker() {
                                 }
                             } else {
                                 // Normal cutting mode
-                                const targetWidth = point.depth * maxDepth * 2;
+                                // Use point.width if available, otherwise calculate from halftone maxSize
+                                const targetWidth = point.width !== undefined ? point.width : (point.depth * (halftoneData.maxSize || 2));
                                 const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                                 const tanValue = Math.tan(vbitHalfAngle);
                                 // Prevent division by zero - if tan is 0 or very small, use maxDepth
@@ -1001,7 +1083,10 @@ function initWorker() {
             }
             
             timeEstimate.textContent = `Est. time: ${timeString}`;
-            
+
+            // Check for depth warning
+            checkDepthWarning();
+
             // Terminate worker to free memory
             if (halftoneWorker) {
                 halftoneWorker.terminate();
@@ -2236,7 +2321,8 @@ function showPresetModal(mode, type) {
                     centerOffsetY: centerOffsetYInput.value,
                     offsetOddLines: offsetOddLinesToggle.checked,
                     darkBoost: darkBoostToggle.checked,
-                    fixedSizes: fixedSizesToggle.checked
+                    fixedSizes: fixedSizesToggle.checked,
+                    ignoreTransparent: ignoreTransparentToggle.checked
                 };
             } else {
                 preset = {
@@ -2343,6 +2429,7 @@ function showPresetModal(mode, type) {
                     offsetOddLinesToggle.checked = preset.offsetOddLines || false;
                     darkBoostToggle.checked = preset.darkBoost || false;
                     fixedSizesToggle.checked = preset.fixedSizes || false;
+                    ignoreTransparentToggle.checked = preset.ignoreTransparent !== false; // Default to true
                     patternTypeSelect.dispatchEvent(new Event('change'));
                 } else {
                     materialThicknessInput.value = preset.materialThickness;
@@ -2846,6 +2933,7 @@ function captureHalftoneState() {
         offsetOddLines: offsetOddLinesToggle.checked,
         darkBoost: darkBoostToggle.checked,
         fixedSizes: fixedSizesToggle.checked,
+        ignoreTransparent: ignoreTransparentToggle.checked,
         penWidth: parseFloat(plotterPenWidthInput?.value || 0.5),
         plotterMode: plotterModeToggle.checked
     };
@@ -2956,7 +3044,8 @@ async function updateHalftonePreview() {
     const offsetOddLines = offsetOddLinesToggle.checked;
     const darkBoost = darkBoostToggle.checked;
     const fixedSizes = fixedSizesToggle.checked;
-    
+    const ignoreTransparent = ignoreTransparentToggle.checked;
+
     // Adjust spacing for plotter mode based on pen size (only for Set Pen Size method)
     if (plotterModeToggle.checked) {
         const plotterMethod = plotterLineWidthMethod?.value || 'pressure';
@@ -3051,9 +3140,9 @@ async function updateHalftonePreview() {
             highlights: highlights,
             upscale: false,  // Already upscaled with Pica if needed, worker doesn't need to upscale
             options: {
-                border, minSize, maxSize, wavelength, amplitude, 
-                centerOffsetX, centerOffsetY, offsetOddLines, 
-                darkBoost, fixedSizes, outputHeight, lockAspect
+                border, minSize, maxSize, wavelength, amplitude,
+                centerOffsetX, centerOffsetY, offsetOddLines,
+                darkBoost, fixedSizes, ignoreTransparent, outputHeight, lockAspect
             }
         }
     }, [imageBuffer]);
@@ -3208,6 +3297,9 @@ generateGcodeButton.addEventListener('click', () => {
                 gcodeInfo.textContent = `${result.totalDistance.toFixed(1)}mm distance • ${result.lineCount} lines • ${result.rapidMoveCount || 0} rapid moves`;
                 gcodeInfo.style.color = '#28a745';
                 gcodeProgress.style.display = 'none';
+
+                // Check for depth warning
+                checkDepthWarning();
             } catch (error) {
                 gcodeProgress.style.display = 'none';
                 gcodeOutput.value = 'Error generating G-code: ' + error.message;
@@ -3385,6 +3477,7 @@ function generateHalftone(img, spacing, angle, outputWidthMM, patternType = 'lin
         offsetOddLines: false,
         darkBoost: false,
         fixedSizes: false,
+        ignoreTransparent: true,
         outputHeight: null,
         lockAspect: true,
         ...options
@@ -3439,9 +3532,20 @@ function generateLinePattern(img, lineSpacing, angle, outputWidthMM, brightness 
 
     // Create grayscale array
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
+    const ignoreTransparent = options.ignoreTransparent !== false; // Default to true
+    // Create transparency mask to preserve transparent pixels after adjustments (including invert)
+    let transparentMask = ignoreTransparent ? new Uint8Array(pixelWidth * pixelHeight) : null;
     for (let i = 0; i < imageData.data.length; i += 4) {
-        const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
-        grayscale[i / 4] = gray;
+        const alpha = imageData.data[i + 3];
+        const pixelIndex = i / 4;
+        // Track transparent pixels so we can restore them after adjustments
+        if (ignoreTransparent && alpha < 128) {
+            transparentMask[pixelIndex] = 1;
+            grayscale[pixelIndex] = 255;
+        } else {
+            const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
+            grayscale[pixelIndex] = gray;
+        }
     }
 
     // Apply pre-blur to prevent aliasing if specified
@@ -3452,6 +3556,15 @@ function generateLinePattern(img, lineSpacing, angle, outputWidthMM, brightness 
     // Apply brightness, contrast, gamma, invert, and dark boost adjustments
     if (brightness !== 0 || contrast !== 0 || invert || gamma !== 1.0 || options.darkBoost || options.shadowsLevel !== 0 || options.midtonesLevel !== 1.0 || options.highlightsLevel !== 255) {
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, options.darkBoost || false, options.shadowsLevel || 0, options.midtonesLevel || 1.0, options.highlightsLevel || 255);
+    }
+
+    // Restore transparent pixels to white after all adjustments (including invert)
+    if (transparentMask) {
+        for (let i = 0; i < grayscale.length; i++) {
+            if (transparentMask[i]) {
+                grayscale[i] = 255;
+            }
+        }
     }
 
     // Generate line pattern
@@ -3492,10 +3605,12 @@ function generateLinePattern(img, lineSpacing, angle, outputWidthMM, brightness 
 
         if (line.length > 1) { // Only add lines with at least 2 points
             // Offset each point by the border amount
+            // Apply fixedSizes if enabled - use max depth for all non-zero points
+            const fixedSizes = options.fixedSizes || false;
             const offsetLine = line.map(point => ({
                 x: point.x + borderPx,
                 y: point.y + borderPx,
-                depth: point.depth
+                depth: fixedSizes ? (point.depth > 0.01 ? 1.0 : 0) : point.depth
             }));
             lines.push(offsetLine);
         }
@@ -3546,9 +3661,20 @@ function generateCirclePattern(img, spacing, outputWidthMM, brightness = 0, cont
     const imageData = tempCtx.getImageData(0, 0, pixelWidth, pixelHeight);
 
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
+    const ignoreTransparent = options.ignoreTransparent !== false; // Default to true
+    // Create transparency mask to preserve transparent pixels after adjustments (including invert)
+    let transparentMask = ignoreTransparent ? new Uint8Array(pixelWidth * pixelHeight) : null;
     for (let i = 0; i < imageData.data.length; i += 4) {
-        const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
-        grayscale[i / 4] = gray;
+        const alpha = imageData.data[i + 3];
+        const pixelIndex = i / 4;
+        // Track transparent pixels so we can restore them after adjustments
+        if (ignoreTransparent && alpha < 128) {
+            transparentMask[pixelIndex] = 1;
+            grayscale[pixelIndex] = 255;
+        } else {
+            const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
+            grayscale[pixelIndex] = gray;
+        }
     }
 
     // Apply pre-blur to prevent aliasing if specified
@@ -3561,8 +3687,18 @@ function generateCirclePattern(img, spacing, outputWidthMM, brightness = 0, cont
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, false, options.shadowsLevel || 0, options.midtonesLevel || 1.0, options.highlightsLevel || 255);
     }
 
+    // Restore transparent pixels to white after all adjustments (including invert)
+    if (transparentMask) {
+        for (let i = 0; i < grayscale.length; i++) {
+            if (transparentMask[i]) {
+                grayscale[i] = 255;
+            }
+        }
+    }
+
     const minSize = options.minSize || 0;
     const maxSize = options.maxSize || spacing;
+    const fixedSizes = options.fixedSizes || false;
 
     // Generate concentric circles from center (like halftoner app)
     const centerX = (outputWidthMM * 0.5) + (options.centerOffsetX || 0);
@@ -3588,7 +3724,7 @@ function generateCirclePattern(img, spacing, outputWidthMM, brightness = 0, cont
             if (centerPx.x >= 0 && centerPx.x < pixelWidth && centerPx.y >= 0 && centerPx.y < pixelHeight) {
                 const index = centerPx.y * pixelWidth + centerPx.x;
                 const bright = grayscale[index] / 255;
-                const width = bright * maxSize;
+                const width = fixedSizes ? (bright < 0.99 ? maxSize : 0) : bright * maxSize;
 
                 if (width > minSize) {
                     currentLine.push({
@@ -3616,7 +3752,7 @@ function generateCirclePattern(img, spacing, outputWidthMM, brightness = 0, cont
                     if (xPx >= 0 && xPx < pixelWidth && yPx >= 0 && yPx < pixelHeight) {
                         const index = yPx * pixelWidth + xPx;
                         const bright = grayscale[index] / 255;
-                        const width = bright * maxSize;
+                        const width = fixedSizes ? (bright < 0.99 ? maxSize : 0) : bright * maxSize;
 
                         if (width > minSize) {
                             // If points were skipped, start new line segment
@@ -3679,9 +3815,20 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
     const imageData = tempCtx.getImageData(0, 0, pixelWidth, pixelHeight);
 
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
+    const ignoreTransparent = options.ignoreTransparent !== false; // Default to true
+    // Create transparency mask to preserve transparent pixels after adjustments (including invert)
+    let transparentMask = ignoreTransparent ? new Uint8Array(pixelWidth * pixelHeight) : null;
     for (let i = 0; i < imageData.data.length; i += 4) {
-        const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
-        grayscale[i / 4] = gray;
+        const alpha = imageData.data[i + 3];
+        const pixelIndex = i / 4;
+        // Track transparent pixels so we can restore them after adjustments
+        if (ignoreTransparent && alpha < 128) {
+            transparentMask[pixelIndex] = 1;
+            grayscale[pixelIndex] = 255;
+        } else {
+            const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
+            grayscale[pixelIndex] = gray;
+        }
     }
 
     // Apply pre-blur to prevent aliasing if specified
@@ -3694,15 +3841,28 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, false, options.shadowsLevel || 0, options.midtonesLevel || 1.0, options.highlightsLevel || 255);
     }
 
+    // Restore transparent pixels to white after all adjustments (including invert)
+    if (transparentMask) {
+        for (let i = 0; i < grayscale.length; i++) {
+            if (transparentMask[i]) {
+                grayscale[i] = 255;
+            }
+        }
+    }
+
     const borderMM = options.border || 0;
     const borderPx = borderMM * resolution;
     const minSize = options.minSize || 0;
     const maxSize = options.maxSize || spacing;
+    const fixedSizes = options.fixedSizes || false;
 
     const totalWidthMM = outputWidthMM + (2 * borderMM);
     const totalHeightMM = outputHeightMM + (2 * borderMM);
     const totalPixelWidth = pixelWidth + (2 * borderPx);
     const totalPixelHeight = pixelHeight + (2 * borderPx);
+
+    // Helper function to calculate width based on brightness
+    const calcWidth = (bright) => fixedSizes ? (bright < 0.99 ? maxSize : 0) : bright * maxSize;
 
     // Generate concentric squares from center (like halftoner app)
     const centerX = (outputWidthMM * 0.5) + (options.centerOffsetX || 0);
@@ -3724,7 +3884,7 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
             if (centerPx.x >= 0 && centerPx.x < pixelWidth && centerPx.y >= 0 && centerPx.y < pixelHeight) {
                 const index = centerPx.y * pixelWidth + centerPx.x;
                 const bright = grayscale[index] / 255;
-                const width = bright * maxSize;
+                const width = calcWidth(bright);
                 if (width > minSize) {
                     lines.push([{x: centerX + borderMM, y: centerY + borderMM, width: width}]);
                 }
@@ -3749,7 +3909,7 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
                     if (xPx >= 0 && xPx < pixelWidth && yPx >= 0 && yPx < pixelHeight) {
                         const index = yPx * pixelWidth + xPx;
                         const bright = grayscale[index] / 255;
-                        const width = bright * maxSize;
+                        const width = calcWidth(bright);
 
                         if (width > minSize) {
                             currentLine.push({x: xMM + borderMM, y: yMM + borderMM, width: width});
@@ -3773,7 +3933,7 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
                     if (xPx >= 0 && xPx < pixelWidth && yPx >= 0 && yPx < pixelHeight) {
                         const index = yPx * pixelWidth + xPx;
                         const bright = grayscale[index] / 255;
-                        const width = bright * maxSize;
+                        const width = calcWidth(bright);
 
                         if (width > minSize) {
                             currentLine.push({x: xMM + borderMM, y: yMM + borderMM, width: width});
@@ -3797,7 +3957,7 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
                     if (xPx >= 0 && xPx < pixelWidth && yPx >= 0 && yPx < pixelHeight) {
                         const index = yPx * pixelWidth + xPx;
                         const bright = grayscale[index] / 255;
-                        const width = bright * maxSize;
+                        const width = calcWidth(bright);
 
                         if (width > minSize) {
                             currentLine.push({x: xMM + borderMM, y: yMM + borderMM, width: width});
@@ -3821,7 +3981,7 @@ function generateSquarePattern(img, spacing, outputWidthMM, brightness = 0, cont
                     if (xPx >= 0 && xPx < pixelWidth && yPx >= 0 && yPx < pixelHeight) {
                         const index = yPx * pixelWidth + xPx;
                         const bright = grayscale[index] / 255;
-                        const width = bright * maxSize;
+                        const width = calcWidth(bright);
 
                         if (width > minSize) {
                             currentLine.push({x: xMM + borderMM, y: yMM + borderMM, width: width});
@@ -3875,9 +4035,20 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
     const imageData = tempCtx.getImageData(0, 0, pixelWidth, pixelHeight);
 
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
+    const ignoreTransparent = options.ignoreTransparent !== false; // Default to true
+    // Create transparency mask to preserve transparent pixels after adjustments (including invert)
+    let transparentMask = ignoreTransparent ? new Uint8Array(pixelWidth * pixelHeight) : null;
     for (let i = 0; i < imageData.data.length; i += 4) {
-        const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
-        grayscale[i / 4] = gray;
+        const alpha = imageData.data[i + 3];
+        const pixelIndex = i / 4;
+        // Track transparent pixels so we can restore them after adjustments
+        if (ignoreTransparent && alpha < 128) {
+            transparentMask[pixelIndex] = 1;
+            grayscale[pixelIndex] = 255;
+        } else {
+            const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
+            grayscale[pixelIndex] = gray;
+        }
     }
 
     // Apply pre-blur to prevent aliasing if specified
@@ -3890,6 +4061,15 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, false, options.shadowsLevel || 0, options.midtonesLevel || 1.0, options.highlightsLevel || 255);
     }
 
+    // Restore transparent pixels to white after all adjustments (including invert)
+    if (transparentMask) {
+        for (let i = 0; i < grayscale.length; i++) {
+            if (transparentMask[i]) {
+                grayscale[i] = 255;
+            }
+        }
+    }
+
     const borderMM = options.border || 0;
     const borderPx = borderMM * resolution;
     const elements = [];
@@ -3897,6 +4077,7 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
     const offsetOddLines = options.offsetOddLines || false;
     const minSize = options.minSize || 0;
     const maxSize = options.maxSize || spacing;
+    const fixedSizes = options.fixedSizes || false;
 
     // Grid of dots
     let rowIndex = 0;
@@ -3909,12 +4090,18 @@ function generateDotPattern(img, spacing, outputWidthMM, brightness = 0, contras
                 const brightness = grayscale[py * pixelWidth + px];
                 const bright = brightness / 255;
 
-                // Area-based calculation for dots like halftoner app
-                // NOTE: halftoner uses bright (not 1-bright), so bright pixels = large dots
-                const maxArea = Math.PI * (maxSize * 0.5) * (maxSize * 0.5);
-                const dotArea = bright * maxArea;
-                const dotRadius = Math.sqrt(dotArea / Math.PI);
-                const elementWidth = dotRadius * 2;
+                let elementWidth;
+                if (fixedSizes) {
+                    // Fixed sizes mode: use max size for all non-white elements
+                    elementWidth = bright < 0.99 ? maxSize : 0;
+                } else {
+                    // Area-based calculation for dots like halftoner app
+                    // NOTE: halftoner uses bright (not 1-bright), so bright pixels = large dots
+                    const maxArea = Math.PI * (maxSize * 0.5) * (maxSize * 0.5);
+                    const dotArea = bright * maxArea;
+                    const dotRadius = Math.sqrt(dotArea / Math.PI);
+                    elementWidth = dotRadius * 2;
+                }
 
                 if (elementWidth > minSize) {
                     // Store coordinates in mm like halftoner app, not pixels
@@ -3971,9 +4158,20 @@ function generateStipplePattern(img, density, outputWidthMM, brightness = 0, con
     const imageData = tempCtx.getImageData(0, 0, pixelWidth, pixelHeight);
 
     let grayscale = new Uint8Array(pixelWidth * pixelHeight);
+    const ignoreTransparent = options.ignoreTransparent !== false; // Default to true
+    // Create transparency mask to preserve transparent pixels after adjustments (including invert)
+    let transparentMask = ignoreTransparent ? new Uint8Array(pixelWidth * pixelHeight) : null;
     for (let i = 0; i < imageData.data.length; i += 4) {
-        const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
-        grayscale[i / 4] = gray;
+        const alpha = imageData.data[i + 3];
+        const pixelIndex = i / 4;
+        // Track transparent pixels so we can restore them after adjustments
+        if (ignoreTransparent && alpha < 128) {
+            transparentMask[pixelIndex] = 1;
+            grayscale[pixelIndex] = 255;
+        } else {
+            const gray = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
+            grayscale[pixelIndex] = gray;
+        }
     }
 
     // Apply pre-blur to prevent aliasing if specified
@@ -3986,7 +4184,17 @@ function generateStipplePattern(img, density, outputWidthMM, brightness = 0, con
         grayscale = adjustBrightnessContrast(grayscale, brightness, contrast, invert, gamma, false, options.shadowsLevel || 0, options.midtonesLevel || 1.0, options.highlightsLevel || 255);
     }
 
+    // Restore transparent pixels to white after all adjustments (including invert)
+    if (transparentMask) {
+        for (let i = 0; i < grayscale.length; i++) {
+            if (transparentMask[i]) {
+                grayscale[i] = 255;
+            }
+        }
+    }
+
     const elements = [];
+    const fixedSizes = options.fixedSizes || false;
     // Number of stipple points based on density (smaller density = more points)
     const numPoints = Math.floor((pixelWidth * pixelHeight) / (density * density * 2));
 
@@ -4004,7 +4212,7 @@ function generateStipplePattern(img, density, outputWidthMM, brightness = 0, con
                     type: 'point',
                     x: x,
                     y: y,
-                    depth: value
+                    depth: fixedSizes ? 1.0 : value
                 });
             }
         }
@@ -4897,7 +5105,8 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
                         shouldProcess = pointDepth > 0.001; // Almost everything except pure white
                     } else {
                         // Cutting mode: calculate depth from V-bit angle
-                        const targetWidth = pointDepth * maxDepth * 2;
+                        // Use point.width if available, otherwise calculate from halftone maxSize
+                        const targetWidth = point.width !== undefined ? point.width : (pointDepth * (halftoneData.maxSize || 2));
                         const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                         const tanValue = Math.tan(vbitHalfAngle);
                         // Prevent division by zero - if tan is 0 or very small, use maxDepth
@@ -5028,7 +5237,8 @@ function generateGcode(halftoneData, maxDepth, safeHeight, cuttingFeedRate, plun
                             }
                         } else {
                             // Normal cutting mode
-                            const targetWidth = pointDepth * maxDepth * 2;
+                            // Use point.width if available, otherwise calculate from halftone maxSize
+                            const targetWidth = point.width !== undefined ? point.width : (pointDepth * (halftoneData.maxSize || 2));
                             const vbitHalfAngle = (vbitAngle / 2) * (Math.PI / 180);
                             const tanValue = Math.tan(vbitHalfAngle);
                             // Prevent division by zero - if tan is 0 or very small, use maxDepth
@@ -5804,6 +6014,7 @@ function loadPreset(type, presetName, silent = false) {
         offsetOddLinesToggle.checked = preset.offsetOddLines || false;
         darkBoostToggle.checked = preset.darkBoost || false;
         fixedSizesToggle.checked = preset.fixedSizes || false;
+        ignoreTransparentToggle.checked = preset.ignoreTransparent !== false; // Default to true
         patternTypeSelect.dispatchEvent(new Event('change'));
     } else {
         materialThicknessInput.value = preset.materialThickness;
