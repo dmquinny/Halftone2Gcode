@@ -136,6 +136,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     const unitScale = isInchMode ? 1/25.4 : 1;
     const feedScale = unitScale;
     const precision = isInchMode ? 4 : 2;
+    const unitLabel = isInchMode ? 'inches' : 'mm';
 
     // Time estimation variables
     let totalTime = 0;
@@ -777,6 +778,79 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     await writeLine('(End halftone pattern)');
     await writeLine('');
 
+    // === BOUNDARY FRAME ===
+    // Generate boundary frame if enabled and includeBoundaryInGcode is true
+    if (boundary && includeBoundaryInGcode) {
+        // Boundary frame cuts at the border edge (around image content)
+        const borderMM = halftoneData.border || 0;
+        const imageWidthMM = halftoneData.width - (borderMM * 2);
+        const imageHeightMM = halftoneData.height - (borderMM * 2);
+
+        // Frame is positioned at the border edge
+        const frameX1 = xOffset + borderMM;
+        const frameY1 = yOffset + borderMM;
+        const frameX2 = xOffset + borderMM + imageWidthMM;
+        const frameY2 = yOffset + borderMM + imageHeightMM;
+        const toolRadius = boundaryToolSize / 2;
+
+        // Use border cutting feed rate if specified, otherwise use main cutting feed rate
+        const borderFeedRate = borderCuttingFeedRate !== null && borderCuttingFeedRate > 0 ? borderCuttingFeedRate : cuttingFeedRate;
+
+        // Calculate number of passes needed
+        const numPasses = Math.ceil(boundaryDepth / boundaryPassDepth);
+        const actualPassDepth = boundaryDepth / numPasses;
+
+        await writeLine('(Boundary Frame)');
+        await writeLine(`(Total depth: ${fmt(boundaryDepth)}${unitLabel} in ${numPasses} pass${numPasses > 1 ? 'es' : ''})`);
+
+        if (toolChange) {
+            await writeLine(`T${boundaryToolNumber} M6 (Load boundary frame tool - ${fmt(boundaryToolSize)}${unitLabel})`);
+            await writeLine('G43 H2 (Tool length offset)');
+            await writeLine(`M3 S${spindleSpeed} (Start spindle)`);
+            await writeLine('G4 P2 (Wait for spindle)');
+        }
+
+        // Move to start position
+        await writeLine(`G0 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY1 - toolRadius)}`);
+        await writeLine(`G0 Z${fmt(safeHeight)}`);
+        rapidMoveCount++;
+
+        const rapidDistToBoundary = Math.sqrt((frameX1 - toolRadius - lastX) ** 2 + (frameY1 - toolRadius - lastY) ** 2);
+        totalTime += calculateMoveTime(rapidDistToBoundary, rapidRate, true);
+        lastX = frameX1 - toolRadius;
+        lastY = frameY1 - toolRadius;
+
+        // Execute multiple passes
+        for (let pass = 1; pass <= numPasses; pass++) {
+            const currentDepth = actualPassDepth * pass;
+            await writeLine('');
+            await writeLine(`(Pass ${pass} of ${numPasses} - depth ${fmt(currentDepth)}${unitLabel})`);
+            await writeLine(`G1 Z${fmt(-currentDepth)} F${Math.round(plungeFeedRate * feedScale)}`);
+            totalTime += calculateMoveTime(currentDepth, plungeFeedRate, true);
+
+            // Cut the frame rectangle
+            await writeLine(`G1 X${fmt(frameX2 + toolRadius)} Y${fmt(frameY1 - toolRadius)} F${Math.round(borderFeedRate * feedScale)}`);
+            await writeLine(`G1 X${fmt(frameX2 + toolRadius)} Y${fmt(frameY2 + toolRadius)}`);
+            await writeLine(`G1 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY2 + toolRadius)}`);
+            await writeLine(`G1 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY1 - toolRadius)}`);
+
+            // Calculate distance for this pass
+            const frameDist = 2 * (imageWidthMM + imageHeightMM + 4 * toolRadius);
+            totalCuttingDistance += frameDist;
+            totalTime += calculateMoveTime(frameDist, borderFeedRate);
+
+            // Return to safe height after each pass (except the last one, handled by footer)
+            if (pass < numPasses) {
+                await writeLine(`G0 Z${fmt(safeHeight)}`);
+                totalTime += calculateMoveTime(safeHeight + currentDepth, rapidRate, true);
+            }
+        }
+
+        await writeLine(`G0 Z${fmt(safeHeight)}`);
+        lastZ = safeHeight;
+        totalTime += calculateMoveTime(safeHeight + actualPassDepth * numPasses, rapidRate, true);
+    }
+
     // === FOOTER ===
     // NOTE: Footer is now written by the GcodeStreamer via finish() method
     // This ensures each file part gets a proper footer
@@ -786,12 +860,31 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     const finalDist = Math.sqrt(lastX ** 2 + lastY ** 2);
     totalTime += calculateMoveTime(finalDist, rapidRate, true);
 
-    // Return stats
+    // Return stats (also return boundary info for separate file generation if needed)
     return {
         lineCount: streamer.getLineCount(),
         totalDistance: totalCuttingDistance,
         estimatedTime: totalTime,
-        rapidMoveCount: rapidMoveCount
+        rapidMoveCount: rapidMoveCount,
+        // Boundary info for separate file generation when includeBoundaryInGcode is false
+        boundaryInfo: boundary && !includeBoundaryInGcode ? {
+            enabled: true,
+            xOffset,
+            yOffset,
+            borderMM: halftoneData.border || 0,
+            imageWidthMM: halftoneData.width - ((halftoneData.border || 0) * 2),
+            imageHeightMM: halftoneData.height - ((halftoneData.border || 0) * 2),
+            boundaryToolSize,
+            boundaryToolNumber,
+            boundaryDepth,
+            boundaryPassDepth,
+            borderCuttingFeedRate: borderCuttingFeedRate || cuttingFeedRate,
+            safeHeight,
+            plungeFeedRate,
+            spindleSpeed,
+            toolChange,
+            outputUnits
+        } : null
     };
 }
 

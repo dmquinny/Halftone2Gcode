@@ -201,6 +201,101 @@ async function generateGcodeWithStreaming() {
         // Finish streaming
         await streamer.finish();
 
+        // Generate separate boundary file if boundary is enabled but not included in main G-code
+        let boundaryFilePath = null;
+        if (result.boundaryInfo) {
+            const info = result.boundaryInfo;
+            const isInchMode = info.outputUnits === 'inch';
+            const fmt = (val) => {
+                const scaled = val * (isInchMode ? 1/25.4 : 1);
+                return scaled.toFixed(isInchMode ? 4 : 2);
+            };
+            const feedScale = isInchMode ? 1/25.4 : 1;
+            const unitLabel = isInchMode ? 'inches' : 'mm';
+
+            // Generate boundary file path
+            boundaryFilePath = filePath.replace(/\.nc$/, '_boundary.nc');
+
+            // Calculate frame positions
+            const frameX1 = info.xOffset + info.borderMM;
+            const frameY1 = info.yOffset + info.borderMM;
+            const frameX2 = info.xOffset + info.borderMM + info.imageWidthMM;
+            const frameY2 = info.yOffset + info.borderMM + info.imageHeightMM;
+            const toolRadius = info.boundaryToolSize / 2;
+
+            // Calculate passes
+            const numPasses = Math.ceil(info.boundaryDepth / info.boundaryPassDepth);
+            const actualPassDepth = info.boundaryDepth / numPasses;
+
+            // Build boundary G-code
+            const boundaryLines = [
+                '(Boundary Frame G-code)',
+                `(Image size: ${fmt(info.imageWidthMM)} x ${fmt(info.imageHeightMM)} ${unitLabel})`,
+                info.borderMM > 0 ? `(Border: ${fmt(info.borderMM)} ${unitLabel})` : '',
+                `(Frame depth: ${fmt(info.boundaryDepth)} ${unitLabel} in ${numPasses} pass${numPasses > 1 ? 'es' : ''})`,
+                `(Pass depth: ${fmt(actualPassDepth)} ${unitLabel})`,
+                `(Tool: ${fmt(info.boundaryToolSize)} ${unitLabel} diameter)`,
+                info.toolChange ? `(Tool number: T${info.boundaryToolNumber})` : '',
+                '(Generated for grblHAL)',
+                '',
+                isInchMode ? 'G20 (Imperial units)' : 'G21 (Metric units)',
+                'G90 (Absolute positioning)',
+                'G17 (XY plane)',
+                'G94 (Feed per minute)',
+                'G54 (Work coordinate system)',
+                '',
+                info.toolChange ? '' : `M3 S${info.spindleSpeed} (Start spindle)`,
+                info.toolChange ? '' : 'G4 P2 (Wait 2 seconds)',
+                `F${Math.round(info.borderCuttingFeedRate * feedScale)} (Set feed rate)`,
+                `G0 Z${fmt(info.safeHeight)} (Safe height)`,
+                'G0 X0.000 Y0.000 (Move to origin)',
+                '',
+                '(Boundary Frame)',
+                `(Total depth: ${fmt(info.boundaryDepth)} ${unitLabel} in ${numPasses} pass${numPasses > 1 ? 'es' : ''})`,
+            ].filter(line => line !== '');
+
+            if (info.toolChange) {
+                boundaryLines.push(`T${info.boundaryToolNumber} M6 (Load boundary frame tool)`);
+                boundaryLines.push('G43 H2 (Tool length offset)');
+                boundaryLines.push(`M3 S${info.spindleSpeed} (Start spindle)`);
+                boundaryLines.push('G4 P2 (Wait for spindle)');
+            }
+
+            // Move to start position
+            boundaryLines.push(`G0 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY1 - toolRadius)}`);
+            boundaryLines.push(`G0 Z${fmt(info.safeHeight)}`);
+
+            // Execute passes
+            for (let pass = 1; pass <= numPasses; pass++) {
+                const currentDepth = actualPassDepth * pass;
+                boundaryLines.push('');
+                boundaryLines.push(`(Pass ${pass} of ${numPasses} - depth ${fmt(currentDepth)} ${unitLabel})`);
+                boundaryLines.push(`G1 Z${fmt(-currentDepth)} F${Math.round(info.plungeFeedRate * feedScale)}`);
+                boundaryLines.push(`G1 X${fmt(frameX2 + toolRadius)} Y${fmt(frameY1 - toolRadius)} F${Math.round(info.borderCuttingFeedRate * feedScale)}`);
+                boundaryLines.push(`G1 X${fmt(frameX2 + toolRadius)} Y${fmt(frameY2 + toolRadius)}`);
+                boundaryLines.push(`G1 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY2 + toolRadius)}`);
+                boundaryLines.push(`G1 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY1 - toolRadius)}`);
+
+                if (pass < numPasses) {
+                    boundaryLines.push(`G0 Z${fmt(info.safeHeight)}`);
+                }
+            }
+
+            // Footer
+            boundaryLines.push('');
+            boundaryLines.push(`G0 Z${fmt(info.safeHeight)}`);
+            boundaryLines.push('M5 (Stop spindle)');
+            boundaryLines.push(`G0 X${fmt(0)} Y${fmt(0)} (Return to origin)`);
+            boundaryLines.push('M30 (Program end)');
+
+            // Write boundary file
+            const boundaryContent = boundaryLines.join('\n');
+            await window.__TAURI__.core.invoke('write_text_file', {
+                filePath: boundaryFilePath,
+                content: boundaryContent
+            });
+        }
+
         // Keep textarea hidden
         if (gcodeOutput) {
             gcodeOutput.style.display = 'none';
@@ -314,6 +409,12 @@ async function generateGcodeWithStreaming() {
             successMessage += `\nTotal: ${result.lineCount.toLocaleString()} lines`;
         } else {
             successMessage += `G-code saved to:\n${filePath}\n\n${result.lineCount.toLocaleString()} lines generated`;
+        }
+
+        // Add boundary file info if created separately
+        if (boundaryFilePath) {
+            const boundaryFileName = boundaryFilePath.split(/[\\/]/).pop();
+            successMessage += `\n\nBoundary file saved to:\n${boundaryFileName}`;
         }
 
         alert(successMessage);
