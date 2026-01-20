@@ -781,16 +781,16 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
     // === BOUNDARY FRAME ===
     // Generate boundary frame if enabled and includeBoundaryInGcode is true
     if (boundary && includeBoundaryInGcode) {
-        // Boundary frame cuts at the border edge (around image content)
-        const borderMM = halftoneData.border || 0;
-        const imageWidthMM = halftoneData.width - (borderMM * 2);
-        const imageHeightMM = halftoneData.height - (borderMM * 2);
+        // Boundary frame cuts around the OUTSIDE of the entire piece (including border)
+        // halftoneData.width/height already includes the border on all sides
+        const totalWidthMM = halftoneData.width;
+        const totalHeightMM = halftoneData.height;
 
-        // Frame is positioned at the border edge
-        const frameX1 = xOffset + borderMM;
-        const frameY1 = yOffset + borderMM;
-        const frameX2 = xOffset + borderMM + imageWidthMM;
-        const frameY2 = yOffset + borderMM + imageHeightMM;
+        // Frame cuts at the outer edge of the total piece
+        const frameX1 = xOffset;
+        const frameY1 = yOffset;
+        const frameX2 = xOffset + totalWidthMM;
+        const frameY2 = yOffset + totalHeightMM;
         const toolRadius = boundaryToolSize / 2;
 
         // Use border cutting feed rate if specified, otherwise use main cutting feed rate
@@ -835,7 +835,7 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
             await writeLine(`G1 X${fmt(frameX1 - toolRadius)} Y${fmt(frameY1 - toolRadius)}`);
 
             // Calculate distance for this pass
-            const frameDist = 2 * (imageWidthMM + imageHeightMM + 4 * toolRadius);
+            const frameDist = 2 * (totalWidthMM + totalHeightMM + 4 * toolRadius);
             totalCuttingDistance += frameDist;
             totalTime += calculateMoveTime(frameDist, borderFeedRate);
 
@@ -871,9 +871,8 @@ async function generateGcodeStreaming(halftoneData, maxDepth, safeHeight, cuttin
             enabled: true,
             xOffset,
             yOffset,
-            borderMM: halftoneData.border || 0,
-            imageWidthMM: halftoneData.width - ((halftoneData.border || 0) * 2),
-            imageHeightMM: halftoneData.height - ((halftoneData.border || 0) * 2),
+            totalWidthMM: halftoneData.width,
+            totalHeightMM: halftoneData.height,
             boundaryToolSize,
             boundaryToolNumber,
             boundaryDepth,

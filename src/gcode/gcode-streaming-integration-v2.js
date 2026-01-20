@@ -216,11 +216,11 @@ async function generateGcodeWithStreaming() {
             // Generate boundary file path
             boundaryFilePath = filePath.replace(/\.nc$/, '_boundary.nc');
 
-            // Calculate frame positions
-            const frameX1 = info.xOffset + info.borderMM;
-            const frameY1 = info.yOffset + info.borderMM;
-            const frameX2 = info.xOffset + info.borderMM + info.imageWidthMM;
-            const frameY2 = info.yOffset + info.borderMM + info.imageHeightMM;
+            // Calculate frame positions - frame cuts around OUTSIDE of entire piece
+            const frameX1 = info.xOffset;
+            const frameY1 = info.yOffset;
+            const frameX2 = info.xOffset + info.totalWidthMM;
+            const frameY2 = info.yOffset + info.totalHeightMM;
             const toolRadius = info.boundaryToolSize / 2;
 
             // Calculate passes
@@ -230,8 +230,7 @@ async function generateGcodeWithStreaming() {
             // Build boundary G-code
             const boundaryLines = [
                 '(Boundary Frame G-code)',
-                `(Image size: ${fmt(info.imageWidthMM)} x ${fmt(info.imageHeightMM)} ${unitLabel})`,
-                info.borderMM > 0 ? `(Border: ${fmt(info.borderMM)} ${unitLabel})` : '',
+                `(Total size: ${fmt(info.totalWidthMM)} x ${fmt(info.totalHeightMM)} ${unitLabel})`,
                 `(Frame depth: ${fmt(info.boundaryDepth)} ${unitLabel} in ${numPasses} pass${numPasses > 1 ? 'es' : ''})`,
                 `(Pass depth: ${fmt(actualPassDepth)} ${unitLabel})`,
                 `(Tool: ${fmt(info.boundaryToolSize)} ${unitLabel} diameter)`,
@@ -292,7 +291,7 @@ async function generateGcodeWithStreaming() {
             const boundaryContent = boundaryLines.join('\n');
             await window.__TAURI__.core.invoke('write_text_file', {
                 filePath: boundaryFilePath,
-                content: boundaryContent
+                contents: boundaryContent
             });
         }
 

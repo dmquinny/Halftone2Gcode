@@ -58,7 +58,7 @@ const centerOffsetXInput = document.getElementById('centerOffsetX');
 const centerOffsetYInput = document.getElementById('centerOffsetY');
 const offsetOddLinesToggle = document.getElementById('offsetOddLinesToggle');
 const darkBoostToggle = document.getElementById('darkBoostToggle');
-const fixedSizesToggle = document.getElementById('fixedSizesToggle');
+// fixedSizesToggle removed - feature was pointless (removes halftone effect)
 const ignoreTransparentToggle = document.getElementById('ignoreTransparentToggle');
 const outputUnitsSelect = document.getElementById('outputUnits');
 const vbitAngleSelect = document.getElementById('vbitAngle');
@@ -299,53 +299,61 @@ const adjustBrightnessContrastWorkerCode = function adjustBrightnessContrast(gra
 const generateLineWorkerCode = function generateLine(grayscale, width, height, startX, startY, dirX, dirY, resolution, wavelength, amplitude) {
     const points = [];
     const diagonal = Math.sqrt(width * width + height * height);
-    // Use finer step for wave patterns to capture wave shape properly
-    // For waves, need at least 30 points per wavelength for smooth curves
+
+    // Convert wavelength and amplitude from mm to pixels
     const wavelengthPx = wavelength > 0 ? wavelength * resolution : 0;
     const amplitudePx = amplitude > 0 ? amplitude * resolution : 0;
     const hasWave = wavelengthPx > 0 && amplitudePx > 0;
-    let step;
+
+    // Point spacing along the line (like Halftoner's pointSpacing)
+    // For lines with waves, use finer spacing for smooth curves
+    // Halftoner uses spacing * 0.25 for lines mode
+    let pointSpacing;
     if (hasWave) {
-        // Step must be small enough for smooth waves: wavelength/30 points
-        // But not too small to avoid performance issues (min 0.5px)
-        step = Math.max(0.5, wavelengthPx / 30);
+        // Use fine spacing to capture wave shape - at least 30 points per wavelength
+        pointSpacing = Math.max(0.5, wavelengthPx / 30);
     } else {
-        step = Math.max(0.2 * resolution, 0.2);
+        pointSpacing = Math.max(0.2 * resolution, 0.2);
     }
-    const perpDirX = -dirY;
-    const perpDirY = dirX;
-    // First pass: find where the line enters the visible area
-    // This ensures wave phase starts fresh at the visible portion
-    let firstVisibleT = null;
-    for (let t = -diagonal; t < diagonal; t += step) {
-        const x = startX + dirX * t;
-        const y = startY + dirY * t;
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            firstVisibleT = t;
-            break;
-        }
-    }
-    if (firstVisibleT === null) return points; // No visible portion
-    // Second pass: generate points with wave phase starting at visible portion
-    for (let t = firstVisibleT; t < diagonal; t += step) {
-        let x = startX + dirX * t;
-        let y = startY + dirY * t;
-        if (x < 0 || x >= width || y < 0 || y >= height) break; // Exit when leaving visible area
+
+    // Calculate wave step per point (like Halftoner: TwoPI / (wavelength / pointSpacing))
+    // This ensures the wave completes one cycle over 'wavelengthPx' distance
+    const TwoPI = 2 * Math.PI;
+    const waveStep = hasWave ? (TwoPI * pointSpacing) / wavelengthPx : 0;
+
+    // Perpendicular direction for wave offset (tangent to line direction)
+    // Like Halftoner's LineTangentX = Rotate(new PointD(0, 1), angle)
+    const tangentX = -dirY;
+    const tangentY = dirX;
+
+    // Wave angle starts at 0 for each line (like Halftoner)
+    let waveAngle = 0.0;
+
+    // Scan from -diagonal to +diagonal along the line
+    for (let dist = -diagonal; dist < diagonal; dist += pointSpacing) {
+        // Calculate base position along line
+        let x = startX + dirX * dist;
+        let y = startY + dirY * dist;
+
+        // Apply wave offset first (like Halftoner does before bounds checking)
         if (hasWave) {
-            // Wave phase starts at 0 when line enters visible area
-            const localT = t - firstVisibleT;
-            const waveOffset = Math.sin((localT / wavelengthPx) * 2 * Math.PI) * amplitudePx;
-            x += perpDirX * waveOffset;
-            y += perpDirY * waveOffset;
+            const waveMult = Math.sin(waveAngle) * amplitudePx;
+            x += tangentX * waveMult;
+            y += tangentY * waveMult;
         }
-        const px = Math.floor(x);
-        const py = Math.floor(y);
-        if (px >= 0 && px < width && py >= 0 && py < height) {
+
+        // Check if final position is within image bounds
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            const px = Math.floor(x);
+            const py = Math.floor(y);
             const index = py * width + px;
             const brightness = grayscale[index];
             const depth = 1 - (brightness / 255);
             points.push({ x: x, y: y, depth: depth });
         }
+
+        // Increment wave angle for next point (like Halftoner: waveAngle += waveStep)
+        waveAngle += waveStep;
     }
     return points;
 };
@@ -1445,12 +1453,6 @@ darkBoostToggle.addEventListener('change', () => {
     }
 });
 
-fixedSizesToggle.addEventListener('change', () => {
-    if (autoUpdateEnabled && currentImage) {
-        debounceUpdatePreview();
-    }
-});
-
 gammaInput.addEventListener('input', () => {
     if (autoUpdateEnabled && currentImage) {
         debounceUpdatePreview();
@@ -2348,7 +2350,6 @@ function showPresetModal(mode, type) {
                     centerOffsetY: centerOffsetYInput.value,
                     offsetOddLines: offsetOddLinesToggle.checked,
                     darkBoost: darkBoostToggle.checked,
-                    fixedSizes: fixedSizesToggle.checked,
                     ignoreTransparent: ignoreTransparentToggle.checked
                 };
             } else {
@@ -2455,7 +2456,6 @@ function showPresetModal(mode, type) {
                     centerOffsetYInput.value = preset.centerOffsetY || 0;
                     offsetOddLinesToggle.checked = preset.offsetOddLines || false;
                     darkBoostToggle.checked = preset.darkBoost || false;
-                    fixedSizesToggle.checked = preset.fixedSizes || false;
                     ignoreTransparentToggle.checked = preset.ignoreTransparent !== false; // Default to true
                     patternTypeSelect.dispatchEvent(new Event('change'));
                 } else {
@@ -2924,7 +2924,7 @@ generatePreviewButton.addEventListener('click', () => {
     borderInput, brightnessInput, contrastInput, gammaInput, minSizeInput, maxSizeInput,
     wavelengthInput, amplitudeInput, centerOffsetXInput, centerOffsetYInput,
     invertToggle, upscaleToggle, lockAspectToggle, offsetOddLinesToggle, darkBoostToggle,
-    fixedSizesToggle, plotterModeToggle, plotterPenWidthInput, patternTypeSelect
+    plotterModeToggle, plotterPenWidthInput, patternTypeSelect
 ].forEach(element => {
     if (element) {
         const eventType = element.tagName === 'INPUT' && element.type === 'checkbox' ? 'change' : 'input';
@@ -2959,7 +2959,6 @@ function captureHalftoneState() {
         lockAspect: lockAspectToggle.checked,
         offsetOddLines: offsetOddLinesToggle.checked,
         darkBoost: darkBoostToggle.checked,
-        fixedSizes: fixedSizesToggle.checked,
         ignoreTransparent: ignoreTransparentToggle.checked,
         penWidth: parseFloat(plotterPenWidthInput?.value || 0.5),
         plotterMode: plotterModeToggle.checked
@@ -3070,7 +3069,6 @@ async function updateHalftonePreview() {
     const lockAspect = lockAspectToggle.checked;
     const offsetOddLines = offsetOddLinesToggle.checked;
     const darkBoost = darkBoostToggle.checked;
-    const fixedSizes = fixedSizesToggle.checked;
     const ignoreTransparent = ignoreTransparentToggle.checked;
 
     // Adjust spacing for plotter mode based on pen size (only for Set Pen Size method)
@@ -3169,7 +3167,7 @@ async function updateHalftonePreview() {
             options: {
                 border, minSize, maxSize, wavelength, amplitude,
                 centerOffsetX, centerOffsetY, offsetOddLines,
-                darkBoost, fixedSizes, ignoreTransparent, outputHeight, lockAspect
+                darkBoost, ignoreTransparent, outputHeight, lockAspect
             }
         }
     }, [imageBuffer]);
@@ -3199,7 +3197,7 @@ async function updateHalftonePreview() {
         setTimeout(() => {
             try {
                 currentHalftoneData = generateHalftone(currentImage, spacing, angle, outputWidth, patternType, brightness, contrast, invert, gamma, angle2, upscale, {
-                    border, minSize, maxSize, wavelength, amplitude, centerOffsetX, centerOffsetY, offsetOddLines, darkBoost, fixedSizes, outputHeight, lockAspect, shadowsLevel: parseFloat(shadowsInput.value), midtonesLevel: parseFloat(midtonesInput.value), highlightsLevel: parseFloat(highlightsInput.value)
+                    border, minSize, maxSize, wavelength, amplitude, centerOffsetX, centerOffsetY, offsetOddLines, darkBoost, outputHeight, lockAspect, shadowsLevel: parseFloat(shadowsInput.value), midtonesLevel: parseFloat(midtonesInput.value), highlightsLevel: parseFloat(highlightsInput.value)
                 });
                 
                 clearInterval(progressInterval);
@@ -4294,6 +4292,7 @@ function generateCrosshatchPattern(img, spacing, angle1, angle2, outputWidthMM, 
 }
 
 // Generate a single line across the image
+// Uses Halftoner-style wave generation: waveAngle starts at 0 and increments by waveStep each point
 function generateLine(grayscale, width, height, startX, startY, dirX, dirY, resolution, wavelength = 0, amplitude = 0) {
     const points = [];
     const diagonal = Math.sqrt(width * width + height * height);
@@ -4303,51 +4302,46 @@ function generateLine(grayscale, width, height, startX, startY, dirX, dirY, reso
     const amplitudePx = amplitude > 0 ? amplitude * resolution : 0;
     const hasWave = wavelengthPx > 0 && amplitudePx > 0;
 
-    // Calculate step size: for waves, use at least 30 points per wavelength
-    // For non-wave lines, use coarser step
-    let step;
+    // Point spacing along the line (like Halftoner's pointSpacing)
+    // For lines with waves, use finer spacing for smooth curves
+    let pointSpacing;
     if (hasWave) {
-        step = Math.max(0.5, wavelengthPx / 30);
+        // Use fine spacing to capture wave shape - at least 30 points per wavelength
+        pointSpacing = Math.max(0.5, wavelengthPx / 30);
     } else {
-        step = Math.max(0.2 * resolution, 0.2);
+        pointSpacing = Math.max(0.2 * resolution, 0.2);
     }
 
-    // Calculate perpendicular direction for wave offset
-    const perpDirX = -dirY;
-    const perpDirY = dirX;
+    // Calculate wave step per point (like Halftoner: TwoPI / (wavelength / pointSpacing))
+    // This ensures the wave completes one cycle over 'wavelengthPx' distance
+    const TwoPI = 2 * Math.PI;
+    const waveStep = hasWave ? (TwoPI * pointSpacing) / wavelengthPx : 0;
 
-    // First pass: find where the line enters the visible area
-    // This ensures wave phase starts fresh at the visible portion
-    let firstVisibleT = null;
-    for (let t = -diagonal; t < diagonal; t += step) {
-        const x = startX + dirX * t;
-        const y = startY + dirY * t;
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            firstVisibleT = t;
-            break;
-        }
-    }
-    if (firstVisibleT === null) return optimizeLinePoints(points); // No visible portion
+    // Perpendicular direction for wave offset (tangent to line direction)
+    // Like Halftoner's LineTangentX = Rotate(new PointD(0, 1), angle)
+    const tangentX = -dirY;
+    const tangentY = dirX;
 
-    // Second pass: generate points with wave phase starting at visible portion
-    for (let t = firstVisibleT; t < diagonal; t += step) {
-        let x = startX + dirX * t;
-        let y = startY + dirY * t;
+    // Wave angle starts at 0 for each line (like Halftoner)
+    let waveAngle = 0.0;
 
-        if (x < 0 || x >= width || y < 0 || y >= height) break; // Exit when leaving visible area
+    // Scan from -diagonal to +diagonal along the line
+    for (let dist = -diagonal; dist < diagonal; dist += pointSpacing) {
+        // Calculate base position along line
+        let x = startX + dirX * dist;
+        let y = startY + dirY * dist;
 
-        // Apply wave pattern if wavelength and amplitude are set
+        // Apply wave offset first (like Halftoner does before bounds checking)
         if (hasWave) {
-            // Wave phase starts at 0 when line enters visible area
-            const localT = t - firstVisibleT;
-            const waveOffset = Math.sin((localT / wavelengthPx) * 2 * Math.PI) * amplitudePx;
-            x += perpDirX * waveOffset;
-            y += perpDirY * waveOffset;
+            const waveMult = Math.sin(waveAngle) * amplitudePx;
+            x += tangentX * waveMult;
+            y += tangentY * waveMult;
         }
 
-        const px = Math.floor(x);
-        const py = Math.floor(y);
-        if (px >= 0 && px < width && py >= 0 && py < height) {
+        // Check if final position is within image bounds
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            const px = Math.floor(x);
+            const py = Math.floor(y);
             const index = py * width + px;
             const brightness = grayscale[index];
 
@@ -4360,6 +4354,9 @@ function generateLine(grayscale, width, height, startX, startY, dirX, dirY, reso
                 depth: depth
             });
         }
+
+        // Increment wave angle for next point (like Halftoner: waveAngle += waveStep)
+        waveAngle += waveStep;
     }
 
     // Optimize points: remove collinear points to reduce file size
@@ -6064,7 +6061,6 @@ function loadPreset(type, presetName, silent = false) {
         centerOffsetYInput.value = preset.centerOffsetY || 0;
         offsetOddLinesToggle.checked = preset.offsetOddLines || false;
         darkBoostToggle.checked = preset.darkBoost || false;
-        fixedSizesToggle.checked = preset.fixedSizes || false;
         ignoreTransparentToggle.checked = preset.ignoreTransparent !== false; // Default to true
         patternTypeSelect.dispatchEvent(new Event('change'));
     } else {
